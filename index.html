@@ -298,7 +298,6 @@
       <button class="nav-btn active" onclick="showPage('home')">Home</button>
       <button class="nav-btn" onclick="showPage('scan')">Scan</button>
       <button class="nav-btn" onclick="showPage('library')">Library</button>
-      <button class="nav-btn" onclick="openConfig()">⚙ Config</button>
       <button class="auth-btn" onclick="toggleAuth()" id="auth-btn">Sign In</button>
     </nav>
   </header>
@@ -414,36 +413,6 @@
   </div>
 </div>
 
-<!-- CONFIG MODAL -->
-<div class="modal-backdrop" id="config-modal">
-  <div class="modal">
-    <h2>⚙ API Configuration</h2>
-    <div class="field">
-      <label>Gemini API Key</label>
-      <input type="password" id="cfg-gemini" placeholder="AIza..." />
-    </div>
-    <div class="field">
-      <label>Featherless.ai API Key <span class="opt">(optional — enables smarter 3D generation)</span></label>
-      <input type="password" id="cfg-featherless" placeholder="rc_... leave blank to use local fallback" />
-    </div>
-    <div class="field">
-      <label>ElevenLabs API Key <span class="opt">(optional — enables voice transcription + TTS)</span></label>
-      <input type="password" id="cfg-elevenlabs" placeholder="..." />
-    </div>
-    <div class="field">
-      <label>Featherless Model <span class="opt">(optional)</span></label>
-      <select id="cfg-model">
-        <option value="deepseek-ai/DeepSeek-V3-0324">DeepSeek-V3-0324 (Recommended)</option>
-        <option value="meta-llama/Llama-3.3-70B-Instruct">Llama-3.3-70B-Instruct</option>
-        <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct</option>
-      </select>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-generate" onclick="saveConfig()">Save Config</button>
-      <button class="btn btn-outline" onclick="closeConfig()">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <!-- LOADING -->
 <div class="loading-overlay" id="loading">
@@ -459,9 +428,9 @@
 // CONFIG
 // ============================================================
 let CONFIG = {
-  geminiKey:      localStorage.getItem('fg_gemini')      || '',
-  featherlessKey: localStorage.getItem('fg_featherless') || '',
-  elevenLabsKey:  localStorage.getItem('fg_elevenlabs')  || '',
+  geminiKey:      'AIzaSyDCemc-QMtbq1lxHjLPfwCI0rH5i3gRIcI',
+  featherlessKey: 'rc_d16336d22e5dfbd518ec94e0c4db4f31858afc94f6605cb6c7f6c310e372a41b',
+  elevenLabsKey:  '',
   model:          localStorage.getItem('fg_model')       || 'deepseek-ai/DeepSeek-V3-0324',
 };
 
@@ -504,31 +473,6 @@ function toggleAuth() {
     toast('Welcome back, ' + user.name + '!', 'success');
     log('Auth0 authentication successful', 'success');
   }
-}
-
-// ============================================================
-// CONFIG MODAL
-// ============================================================
-function openConfig() {
-  document.getElementById('cfg-gemini').value     = CONFIG.geminiKey;
-  document.getElementById('cfg-featherless').value = CONFIG.featherlessKey;
-  document.getElementById('cfg-elevenlabs').value  = CONFIG.elevenLabsKey;
-  document.getElementById('cfg-model').value       = CONFIG.model;
-  document.getElementById('config-modal').classList.add('active');
-}
-function closeConfig() { document.getElementById('config-modal').classList.remove('active'); }
-function saveConfig() {
-  CONFIG.geminiKey      = document.getElementById('cfg-gemini').value.trim();
-  CONFIG.featherlessKey = document.getElementById('cfg-featherless').value.trim();
-  CONFIG.elevenLabsKey  = document.getElementById('cfg-elevenlabs').value.trim();
-  CONFIG.model          = document.getElementById('cfg-model').value;
-  localStorage.setItem('fg_gemini',      CONFIG.geminiKey);
-  localStorage.setItem('fg_featherless', CONFIG.featherlessKey);
-  localStorage.setItem('fg_elevenlabs',  CONFIG.elevenLabsKey);
-  localStorage.setItem('fg_model',       CONFIG.model);
-  closeConfig();
-  toast('Configuration saved!', 'success');
-  log('API keys updated', 'success');
 }
 
 // ============================================================
