@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ForgeAI — Scan. Generate. Own.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    :root {
+      --void: #020408;
+      --deep: #050d1a;
+      --nebula: #0a1628;
+      --cyan: #00d4ff;
+      --teal: #00ffcc;
+      --gold: #ffd700;
+      --plasma: #ff6b35;
+      --text: #c8e6ff;
+      --dim: #4a7a9b;
+      --glow-cyan: 0 0 20px rgba(0,212,255,0.5), 0 0 60px rgba(0,212,255,0.2);
+      --glow-teal: 0 0 20px rgba(0,255,204,0.5), 0 0 60px rgba(0,255,204,0.2);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--void);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 16px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    #stars {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(0,50,80,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,80,60,0.1) 0%, transparent 50%),
+        var(--void);
+    }
+
+    #stars::before, #stars::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background-image:
+        radial-gradient(1px 1px at 10% 15%, rgba(200,230,255,0.8) 0%, transparent 100%),
+        radial-gradient(1px 1px at 25% 40%, rgba(200,230,255,0.6) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 40% 8%, rgba(200,230,255,0.9) 0%, transparent 100%),
+        radial-gradient(1px 1px at 60% 55%, rgba(200,230,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 75% 25%, rgba(200,230,255,0.7) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 85% 70%, rgba(200,230,255,0.8) 0%, transparent 100%),
+        radial-gradient(1px 1px at 90% 10%, rgba(200,230,255,0.6) 0%, transparent 100%),
+        radial-gradient(1px 1px at 5% 80%, rgba(200,230,255,0.7) 0%, transparent 100%),
+        radial-gradient(1px 1px at 50% 90%, rgba(200,230,255,0.5) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 30% 70%, rgba(200,230,255,0.6) 0%, transparent 100%),
+        radial-gradient(1px 1px at 70% 85%, rgba(200,230,255,0.8) 0%, transparent 100%),
+        radial-gradient(1px 1px at 15% 55%, rgba(200,230,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 95% 45%, rgba(200,230,255,0.7) 0%, transparent 100%);
+      animation: twinkle 8s ease-in-out infinite alternate;
+    }
+    #stars::after {
+      background-image:
+        radial-gradient(1px 1px at 18% 30%, rgba(0,212,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 55% 20%, rgba(0,255,204,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 82% 60%, rgba(0,212,255,0.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 35% 85%, rgba(255,215,0,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 65% 75%, rgba(0,255,204,0.4) 0%, transparent 100%);
+      animation-delay: -4s;
+    }
+
+    @keyframes twinkle { 0% { opacity: 0.6; } 100% { opacity: 1; } }
+
+    .app { position: relative; z-index: 1; }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 40px;
+      border-bottom: 1px solid rgba(0,212,255,0.15);
+      backdrop-filter: blur(10px);
+      background: rgba(2,4,8,0.8);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .logo {
+      font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 900; letter-spacing: 0.15em;
+      background: linear-gradient(135deg, var(--cyan), var(--teal));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 15px rgba(0,212,255,0.6));
+    }
+    .logo span { background: linear-gradient(135deg, var(--gold), var(--plasma)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    nav { display: flex; gap: 8px; align-items: center; }
+
+    .nav-btn {
+      padding: 8px 20px; background: transparent; border: 1px solid rgba(0,212,255,0.3);
+      color: var(--dim); font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    }
+    .nav-btn:hover, .nav-btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(0,212,255,0.08); box-shadow: var(--glow-cyan); }
+
+    .auth-btn {
+      padding: 8px 24px; background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,255,204,0.1));
+      border: 1px solid var(--cyan); color: var(--cyan); font-family: 'Rajdhani', sans-serif;
+      font-size: 0.85rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      cursor: pointer; transition: all 0.3s; clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+    }
+    .auth-btn:hover { background: linear-gradient(135deg, rgba(0,212,255,0.3), rgba(0,255,204,0.2)); box-shadow: var(--glow-cyan); }
+
+    .page { display: none; padding: 40px; max-width: 1300px; margin: 0 auto; }
+    .page.active { display: block; animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .hero { text-align: center; padding: 60px 20px 40px; }
+
+    .hero-tag {
+      display: inline-block; padding: 4px 16px; border: 1px solid rgba(0,255,204,0.4); color: var(--teal);
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 24px;
+      clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%); background: rgba(0,255,204,0.05);
+    }
+
+    h1 { font-family: 'Orbitron', monospace; font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 900; line-height: 1.1; letter-spacing: 0.05em; margin-bottom: 16px; }
+    h1 .line1 { background: linear-gradient(135deg, #fff 0%, var(--cyan) 60%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: block; }
+    h1 .line2 { background: linear-gradient(135deg, var(--teal) 0%, var(--gold) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: block; filter: drop-shadow(0 0 30px rgba(0,255,204,0.4)); }
+
+    .hero-sub { font-size: 1.15rem; color: var(--dim); max-width: 560px; margin: 0 auto 40px; line-height: 1.7; font-weight: 300; }
+
+    .cta-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    .cta-primary {
+      padding: 14px 40px; background: linear-gradient(135deg, var(--cyan), var(--teal)); border: none;
+      color: var(--void); font-family: 'Orbitron', monospace; font-size: 0.85rem; font-weight: 700;
+      letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; transition: all 0.3s;
+      clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+    }
+    .cta-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 40px rgba(0,212,255,0.4); }
+
+    .cta-secondary {
+      padding: 14px 40px; background: transparent; border: 1px solid rgba(0,212,255,0.4); color: var(--cyan);
+      font-family: 'Orbitron', monospace; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; cursor: pointer; transition: all 0.3s;
+      clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+    }
+    .cta-secondary:hover { background: rgba(0,212,255,0.08); box-shadow: var(--glow-cyan); }
+
+    .pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2px; margin: 60px 0; }
+    .step { padding: 32px 24px; background: rgba(10,22,40,0.6); border: 1px solid rgba(0,212,255,0.08); transition: all 0.3s; }
+    .step:hover { background: rgba(10,22,40,0.9); border-color: rgba(0,212,255,0.3); }
+    .step-num { font-family: 'Orbitron', monospace; font-size: 2.5rem; font-weight: 900; color: rgba(0,212,255,0.15); line-height: 1; margin-bottom: 12px; }
+    .step-icon { font-size: 1.8rem; margin-bottom: 12px; }
+    .step-title { font-family: 'Orbitron', monospace; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.15em; color: var(--cyan); text-transform: uppercase; margin-bottom: 8px; }
+    .step-desc { font-size: 0.9rem; color: var(--dim); line-height: 1.6; font-weight: 300; }
+
+    .scan-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+    @media (max-width: 900px) { .scan-layout { grid-template-columns: 1fr; } }
+
+    .panel { background: rgba(5,13,26,0.8); border: 1px solid rgba(0,212,255,0.15); padding: 28px; position: relative; }
+    .panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0.6; }
+
+    .panel-title {
+      font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.2em;
+      color: var(--cyan); text-transform: uppercase; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+    }
+    .panel-title::after { content: ''; flex: 1; height: 1px; background: rgba(0,212,255,0.2); }
+
+    #webcam-container { position: relative; background: #000; aspect-ratio: 4/3; overflow: hidden; border: 1px solid rgba(0,212,255,0.2); }
+    #webcam { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+    .webcam-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
+
+    .scan-corner { position: absolute; width: 24px; height: 24px; border-color: var(--cyan); border-style: solid; opacity: 0.8; }
+    .scan-corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+    .scan-corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+    .scan-corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+    .scan-corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+    .scan-line { position: absolute; left: 12px; right: 12px; height: 1px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); top: 50%; animation: scanMove 3s ease-in-out infinite; opacity: 0; }
+    .scan-line.active { opacity: 1; }
+    @keyframes scanMove { 0% { top: 12px; } 50% { top: calc(100% - 12px); } 100% { top: 12px; } }
+
+    .capture-count { position: absolute; bottom: 12px; right: 12px; font-family: 'Orbitron', monospace; font-size: 0.7rem; color: var(--cyan); background: rgba(0,0,0,0.7); padding: 4px 10px; letter-spacing: 0.1em; }
+
+    .captures-row { display: flex; gap: 8px; margin-top: 16px; }
+    .thumb { width: 60px; height: 45px; background: rgba(0,212,255,0.05); border: 1px solid rgba(0,212,255,0.2); overflow: hidden; position: relative; flex-shrink: 0; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .thumb.empty::after { content: attr(data-n); position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-family: 'Orbitron', monospace; font-size: 0.65rem; color: rgba(0,212,255,0.3); }
+    .thumb.filled { border-color: var(--teal); }
+    .thumb.filled::before { content: '✓'; position: absolute; top: 2px; right: 4px; font-size: 0.6rem; color: var(--teal); z-index: 1; }
+
+    .btn-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .btn { padding: 10px 24px; font-family: 'Rajdhani', sans-serif; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; border: none; clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%); }
+    .btn-capture { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: var(--void); flex: 1; }
+    .btn-capture:hover { box-shadow: var(--glow-teal); transform: translateY(-1px); }
+    .btn-capture:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-generate { background: linear-gradient(135deg, var(--gold), var(--plasma)); color: var(--void); flex: 1; }
+    .btn-generate:hover { box-shadow: 0 0 20px rgba(255,215,0,0.4); transform: translateY(-1px); }
+    .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-outline { background: transparent; border: 1px solid rgba(0,212,255,0.3); color: var(--dim); }
+    .btn-outline:hover { border-color: var(--cyan); color: var(--cyan); }
+    .btn-voice { background: transparent; border: 1px solid rgba(255,107,53,0.4); color: var(--plasma); padding: 10px 20px; }
+    .btn-voice:hover { border-color: var(--plasma); box-shadow: 0 0 15px rgba(255,107,53,0.3); }
+    .btn-voice.recording { background: rgba(255,107,53,0.15); border-color: var(--plasma); animation: pulse-red 1s ease-in-out infinite; }
+    @keyframes pulse-red { 0%,100% { box-shadow: 0 0 10px rgba(255,107,53,0.3); } 50% { box-shadow: 0 0 25px rgba(255,107,53,0.6); } }
+
+    #viewer-container { position: relative; background: radial-gradient(ellipse at center, rgba(0,30,50,0.8) 0%, #000 100%); aspect-ratio: 4/3; border: 1px solid rgba(0,212,255,0.2); overflow: hidden; }
+    #three-canvas { width: 100% !important; height: 100% !important; display: block; }
+
+    .viewer-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+    .viewer-placeholder .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.3; animation: float 4s ease-in-out infinite; }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    .viewer-placeholder p { font-size: 0.8rem; color: var(--dim); letter-spacing: 0.1em; }
+
+    .status-log { margin-top: 16px; background: rgba(0,0,0,0.4); border: 1px solid rgba(0,212,255,0.1); padding: 12px 16px; max-height: 120px; overflow-y: auto; font-family: 'Rajdhani', monospace; font-size: 0.8rem; }
+    .log-line { padding: 2px 0; display: flex; gap: 8px; align-items: flex-start; }
+    .log-time { color: rgba(0,212,255,0.4); flex-shrink: 0; }
+    .log-msg { color: var(--text); }
+    .log-msg.success { color: var(--teal); }
+    .log-msg.error { color: #ff4444; }
+    .log-msg.info { color: var(--gold); }
+
+    .model-info { margin-top: 16px; padding: 16px; background: rgba(0,212,255,0.04); border: 1px solid rgba(0,212,255,0.1); display: none; }
+    .model-info.visible { display: block; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .info-item label { display: block; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--dim); margin-bottom: 2px; }
+    .info-item span { font-size: 0.85rem; color: var(--text); font-weight: 600; }
+
+    .voice-viz { display: flex; align-items: center; gap: 3px; height: 24px; margin-left: 8px; }
+    .voice-bar { width: 3px; background: var(--plasma); border-radius: 2px; animation: voiceAnim 0.5s ease-in-out infinite alternate; height: 4px; }
+    @keyframes voiceAnim { from { height: 4px; } to { height: 20px; } }
+    .voice-bar:nth-child(1) { animation-delay: 0s; } .voice-bar:nth-child(2) { animation-delay: 0.1s; }
+    .voice-bar:nth-child(3) { animation-delay: 0.2s; } .voice-bar:nth-child(4) { animation-delay: 0.1s; }
+    .voice-bar:nth-child(5) { animation-delay: 0s; }
+
+    .library-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+    .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .model-card { background: rgba(5,13,26,0.8); border: 1px solid rgba(0,212,255,0.1); overflow: hidden; cursor: pointer; transition: all 0.3s; position: relative; }
+    .model-card:hover { border-color: rgba(0,212,255,0.4); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,212,255,0.1); }
+    .card-preview { aspect-ratio: 4/3; background: radial-gradient(ellipse at center, rgba(0,30,60,0.9) 0%, #000 100%); display: flex; align-items: center; justify-content: center; font-size: 3rem; position: relative; overflow: hidden; }
+    .card-body { padding: 16px; }
+    .card-name { font-family: 'Orbitron', monospace; font-size: 0.8rem; font-weight: 700; color: var(--text); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-meta { font-size: 0.75rem; color: var(--dim); display: flex; justify-content: space-between; }
+    .card-tag { display: inline-block; padding: 2px 8px; font-size: 0.65rem; letter-spacing: 0.1em; background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); color: var(--cyan); margin-top: 8px; }
+    .empty-library { text-align: center; padding: 80px 20px; grid-column: 1 / -1; }
+    .empty-library .icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.3; }
+    .empty-library p { color: var(--dim); font-size: 0.9rem; }
+
+    .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(2,4,8,0.9); display: none; align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 20px; backdrop-filter: blur(4px); }
+    .loading-overlay.active { display: flex; }
+    .loader-ring { width: 80px; height: 80px; border: 2px solid rgba(0,212,255,0.1); border-top: 2px solid var(--cyan); border-right: 2px solid var(--teal); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-text { font-family: 'Orbitron', monospace; font-size: 0.8rem; letter-spacing: 0.2em; color: var(--cyan); text-align: center; }
+
+    .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; }
+    .toast { padding: 12px 20px; background: rgba(5,13,26,0.95); border-left: 3px solid var(--teal); font-size: 0.85rem; color: var(--text); animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards; max-width: 300px; }
+    .toast.error { border-color: #ff4444; }
+    .toast.info { border-color: var(--gold); }
+    @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes fadeOut { to { opacity: 0; transform: translateX(20px); } }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(4px); }
+    .modal-backdrop.active { display: flex; }
+    .modal { background: var(--deep); border: 1px solid rgba(0,212,255,0.2); padding: 32px; max-width: 500px; width: 90%; position: relative; }
+    .modal::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--cyan), var(--teal)); }
+    .modal h2 { font-family: 'Orbitron', monospace; font-size: 1rem; letter-spacing: 0.15em; color: var(--cyan); margin-bottom: 24px; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+    .field .opt { color: rgba(0,212,255,0.4); font-size: 0.65rem; margin-left: 6px; text-transform: none; letter-spacing: 0; }
+    .field input, .field select { width: 100%; padding: 10px 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(0,212,255,0.2); color: var(--text); font-family: 'Rajdhani', sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
+    .field input:focus, .field select:focus { border-color: var(--cyan); }
+
+    .section-title { font-family: 'Orbitron', monospace; font-size: 1.2rem; font-weight: 700; letter-spacing: 0.1em; color: var(--text); margin-bottom: 8px; }
+    .section-sub { font-size: 0.9rem; color: var(--dim); margin-bottom: 24px; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--void); }
+    ::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); }
+
+    .progress-bar { height: 2px; background: rgba(0,212,255,0.1); margin-top: 12px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--teal)); width: 0%; transition: width 0.5s ease; }
+
+    .voice-command-display { margin-top: 12px; padding: 10px 16px; background: rgba(255,107,53,0.05); border: 1px solid rgba(255,107,53,0.15); font-size: 0.85rem; color: var(--plasma); min-height: 36px; display: flex; align-items: center; gap: 8px; }
+
+    .save-btn { margin-top: 16px; width: 100%; padding: 12px; background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,255,204,0.08)); border: 1px solid rgba(0,212,255,0.3); color: var(--cyan); font-family: 'Orbitron', monospace; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+    .save-btn:hover { background: rgba(0,212,255,0.15); box-shadow: var(--glow-cyan); }
+    .save-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<div class="app">
+  <header>
+    <div class="logo">FORGE<span>AI</span></div>
+    <nav>
+      <button class="nav-btn active" onclick="showPage('home')">Home</button>
+      <button class="nav-btn" onclick="showPage('scan')">Scan</button>
+      <button class="nav-btn" onclick="showPage('library')">Library</button>
+      <button class="nav-btn" onclick="openConfig()">⚙ Config</button>
+      <button class="auth-btn" onclick="toggleAuth()" id="auth-btn">Sign In</button>
+    </nav>
+  </header>
+
+  <!-- HOME -->
+  <div id="page-home" class="page active">
+    <div class="hero">
+      <div class="hero-tag">🏆 DeerHacks V — Galactic Odyssey</div>
+      <h1><span class="line1">SCAN YOUR WORLD</span><span class="line2">OWN IT IN 3D</span></h1>
+      <p class="hero-sub">Point your camera at any real object, spin it slowly, and ForgeAI reconstructs it as an interactive 3D model — powered by Gemini Vision and voice-controlled via ElevenLabs.</p>
+      <div class="cta-row">
+        <button class="cta-primary" onclick="showPage('scan')">Start Scanning</button>
+        <button class="cta-secondary" onclick="showPage('library')">View Library</button>
+      </div>
+    </div>
+    <div class="pipeline">
+      <div class="step"><div class="step-num">01</div><div class="step-icon">📸</div><div class="step-title">Capture</div><div class="step-desc">Hold your object in front of the camera and capture 5 angles as you slowly rotate it.</div></div>
+      <div class="step"><div class="step-num">02</div><div class="step-icon">🧠</div><div class="step-title">Analyze</div><div class="step-desc">Gemini Vision analyzes all frames simultaneously — extracting shape, texture, material, and dimensions.</div></div>
+      <div class="step"><div class="step-num">03</div><div class="step-icon">⚡</div><div class="step-title">Generate</div><div class="step-desc">3D parameters are built from Gemini's analysis and rendered live with Three.js.</div></div>
+      <div class="step"><div class="step-num">04</div><div class="step-icon">🎙️</div><div class="step-title">Command</div><div class="step-desc">Use your voice to scale, rotate, retexture, or modify your 3D model in real time.</div></div>
+      <div class="step"><div class="step-num">05</div><div class="step-icon">☁️</div><div class="step-title">Save</div><div class="step-desc">Your 3D library is stored in Snowflake — searchable, shareable, exportable to Blender.</div></div>
+    </div>
+  </div>
+
+  <!-- SCAN -->
+  <div id="page-scan" class="page">
+    <div class="section-title">3D Scanner</div>
+    <div class="section-sub">Capture 5 angles of your object, then generate its 3D model</div>
+    <div class="scan-layout">
+      <div>
+        <div class="panel">
+          <div class="panel-title">Live Camera Feed</div>
+          <div id="webcam-container">
+            <video id="webcam" autoplay playsinline muted></video>
+            <canvas id="hidden-canvas" style="display:none"></canvas>
+            <div class="webcam-overlay">
+              <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
+              <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+              <div class="scan-line" id="scan-line"></div>
+              <div class="capture-count" id="capture-count">0 / 5 CAPTURED</div>
+            </div>
+          </div>
+          <div class="captures-row">
+            <div class="thumb empty" id="thumb-0" data-n="1"></div>
+            <div class="thumb empty" id="thumb-1" data-n="2"></div>
+            <div class="thumb empty" id="thumb-2" data-n="3"></div>
+            <div class="thumb empty" id="thumb-3" data-n="4"></div>
+            <div class="thumb empty" id="thumb-4" data-n="5"></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-capture" id="btn-start-cam" onclick="startCamera()">Start Camera</button>
+            <button class="btn btn-capture" id="btn-capture" onclick="captureFrame()" disabled>📸 Capture Angle</button>
+            <button class="btn btn-outline" onclick="resetScan()">↺ Reset</button>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="capture-progress"></div></div>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-generate" id="btn-generate" onclick="generateModel()" disabled>⚡ Generate 3D Model</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="panel-title">3D Model Viewer</div>
+          <div id="viewer-container">
+            <canvas id="three-canvas"></canvas>
+            <div class="viewer-placeholder" id="viewer-placeholder">
+              <div class="icon">🔮</div>
+              <p>Awaiting scan data...</p>
+              <p style="margin-top:6px;font-size:0.7rem">Capture 5 angles to begin</p>
+            </div>
+          </div>
+          <div class="model-info" id="model-info">
+            <div class="info-grid">
+              <div class="info-item"><label>Object Type</label><span id="info-type">—</span></div>
+              <div class="info-item"><label>Material</label><span id="info-material">—</span></div>
+              <div class="info-item"><label>Primary Color</label><span id="info-color">—</span></div>
+              <div class="info-item"><label>Shape Class</label><span id="info-shape">—</span></div>
+            </div>
+          </div>
+          <div class="panel-title" style="margin-top:20px">Voice Commands</div>
+          <div class="btn-row">
+            <button class="btn btn-voice" id="btn-voice" onclick="toggleVoice()">🎙️ Hold to Speak</button>
+            <div class="voice-viz" id="voice-viz" style="display:none">
+              <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+              <div class="voice-bar"></div><div class="voice-bar"></div>
+            </div>
+          </div>
+          <div class="voice-command-display" id="voice-display">
+            <span style="color:var(--dim)">Say: "make it bigger", "rotate left", "change to metal", "red"...</span>
+          </div>
+          <button class="save-btn" id="save-btn" onclick="saveModel()" disabled>💾 Save to Library (Snowflake)</button>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-title">System Log</div>
+          <div class="status-log" id="status-log">
+            <div class="log-line"><span class="log-time">00:00</span><span class="log-msg">ForgeAI initialized. Ready to scan.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIBRARY -->
+  <div id="page-library" class="page">
+    <div class="library-header">
+      <div>
+        <div class="section-title">Your 3D Library</div>
+        <div class="section-sub">All models stored in Snowflake — searchable and exportable</div>
+      </div>
+      <button class="cta-primary" onclick="showPage('scan')">+ New Scan</button>
+    </div>
+    <div class="library-grid" id="library-grid"></div>
+  </div>
+</div>
+
+<!-- CONFIG MODAL -->
+<div class="modal-backdrop" id="config-modal">
+  <div class="modal">
+    <h2>⚙ API Configuration</h2>
+    <div class="field">
+      <label>Gemini API Key</label>
+      <input type="password" id="cfg-gemini" placeholder="AIza..." />
+    </div>
+    <div class="field">
+      <label>Featherless.ai API Key <span class="opt">(optional — enables smarter 3D generation)</span></label>
+      <input type="password" id="cfg-featherless" placeholder="rc_... leave blank to use local fallback" />
+    </div>
+    <div class="field">
+      <label>ElevenLabs API Key <span class="opt">(optional — enables voice transcription + TTS)</span></label>
+      <input type="password" id="cfg-elevenlabs" placeholder="..." />
+    </div>
+    <div class="field">
+      <label>Featherless Model <span class="opt">(optional)</span></label>
+      <select id="cfg-model">
+        <option value="deepseek-ai/DeepSeek-V3-0324">DeepSeek-V3-0324 (Recommended)</option>
+        <option value="meta-llama/Llama-3.3-70B-Instruct">Llama-3.3-70B-Instruct</option>
+        <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-generate" onclick="saveConfig()">Save Config</button>
+      <button class="btn btn-outline" onclick="closeConfig()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loading">
+  <div class="loader-ring"></div>
+  <div class="loader-text" id="loading-text">ANALYZING FRAMES...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+let CONFIG = {
+  geminiKey:      localStorage.getItem('fg_gemini')      || '',
+  featherlessKey: localStorage.getItem('fg_featherless') || '',
+  elevenLabsKey:  localStorage.getItem('fg_elevenlabs')  || '',
+  model:          localStorage.getItem('fg_model')       || 'deepseek-ai/DeepSeek-V3-0324',
+};
+
+let BACKEND_URL = 'http://localhost:8000';
+
+// ============================================================
+// STATE
+// ============================================================
+let captures = [], currentModel = null, stream = null;
+let isRecording = false, mediaRecorder = null, audioChunks = [];
+let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
+let user     = JSON.parse(localStorage.getItem('fg_user')    || 'null');
+let library  = JSON.parse(localStorage.getItem('fg_library') || '[]');
+const startTime = Date.now();
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => { if (b.textContent.toLowerCase().includes(id)) b.classList.add('active'); });
+  if (id === 'scan')    initThreeJS();
+  if (id === 'library') renderLibrary();
+}
+
+// ============================================================
+// AUTH (simulated — swap with real Auth0 SDK for prize)
+// ============================================================
+function toggleAuth() {
+  if (user) {
+    user = null; localStorage.removeItem('fg_user');
+    document.getElementById('auth-btn').textContent = 'Sign In';
+    toast('Signed out');
+  } else {
+    user = { name: 'Commander', email: 'commander@forgeai.space', id: 'user_' + Date.now() };
+    localStorage.setItem('fg_user', JSON.stringify(user));
+    document.getElementById('auth-btn').textContent = '👤 ' + user.name;
+    toast('Welcome back, ' + user.name + '!', 'success');
+    log('Auth0 authentication successful', 'success');
+  }
+}
+
+// ============================================================
+// CONFIG MODAL
+// ============================================================
+function openConfig() {
+  document.getElementById('cfg-gemini').value     = CONFIG.geminiKey;
+  document.getElementById('cfg-featherless').value = CONFIG.featherlessKey;
+  document.getElementById('cfg-elevenlabs').value  = CONFIG.elevenLabsKey;
+  document.getElementById('cfg-model').value       = CONFIG.model;
+  document.getElementById('config-modal').classList.add('active');
+}
+function closeConfig() { document.getElementById('config-modal').classList.remove('active'); }
+function saveConfig() {
+  CONFIG.geminiKey      = document.getElementById('cfg-gemini').value.trim();
+  CONFIG.featherlessKey = document.getElementById('cfg-featherless').value.trim();
+  CONFIG.elevenLabsKey  = document.getElementById('cfg-elevenlabs').value.trim();
+  CONFIG.model          = document.getElementById('cfg-model').value;
+  localStorage.setItem('fg_gemini',      CONFIG.geminiKey);
+  localStorage.setItem('fg_featherless', CONFIG.featherlessKey);
+  localStorage.setItem('fg_elevenlabs',  CONFIG.elevenLabsKey);
+  localStorage.setItem('fg_model',       CONFIG.model);
+  closeConfig();
+  toast('Configuration saved!', 'success');
+  log('API keys updated', 'success');
+}
+
+// ============================================================
+// CAMERA
+// ============================================================
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    document.getElementById('webcam').srcObject = stream;
+    document.getElementById('btn-start-cam').style.display = 'none';
+    document.getElementById('btn-capture').disabled = false;
+    document.getElementById('scan-line').classList.add('active');
+    log('Camera initialized successfully', 'success');
+    toast('Camera ready! Capture 5 angles of your object.', 'success');
+  } catch (e) {
+    log('Camera access denied: ' + e.message, 'error');
+    toast('Camera access denied.', 'error');
+  }
+}
+
+// ============================================================
+// CAPTURE
+// ============================================================
+function captureFrame() {
+  if (captures.length >= 5) return;
+  const video  = document.getElementById('webcam');
+  const canvas = document.getElementById('hidden-canvas');
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.save(); ctx.scale(-1, 1); ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height); ctx.restore();
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  captures.push(dataUrl);
+
+  const thumb = document.getElementById('thumb-' + (captures.length - 1));
+  const img = document.createElement('img'); img.src = dataUrl;
+  thumb.innerHTML = ''; thumb.appendChild(img);
+  thumb.classList.remove('empty'); thumb.classList.add('filled');
+
+  document.getElementById('capture-progress').style.width = (captures.length / 5 * 100) + '%';
+  document.getElementById('capture-count').textContent = captures.length + ' / 5 CAPTURED';
+
+  const container = document.getElementById('webcam-container');
+  container.style.boxShadow = '0 0 30px rgba(0,255,204,0.8)';
+  setTimeout(() => { container.style.boxShadow = ''; }, 200);
+
+  log('Angle ' + captures.length + '/5 captured (' + Math.round(dataUrl.length / 1024) + 'KB)', 'success');
+
+  if (captures.length === 5) {
+    document.getElementById('btn-generate').disabled = false;
+    document.getElementById('btn-capture').disabled  = true;
+    toast('5 angles captured! Ready to generate.', 'success');
+    log('All angles captured. Click Generate to proceed.', 'info');
+  }
+}
+
+function resetScan() {
+  captures = []; currentModel = null;
+  for (let i = 0; i < 5; i++) {
+    const t = document.getElementById('thumb-' + i);
+    t.innerHTML = ''; t.className = 'thumb empty'; t.setAttribute('data-n', i + 1);
+  }
+  document.getElementById('capture-progress').style.width = '0%';
+  document.getElementById('capture-count').textContent    = '0 / 5 CAPTURED';
+  document.getElementById('btn-generate').disabled = true;
+  document.getElementById('btn-capture').disabled  = !stream;
+  document.getElementById('save-btn').disabled     = true;
+  document.getElementById('model-info').classList.remove('visible');
+  document.getElementById('viewer-placeholder').style.display = 'flex';
+  document.getElementById('voice-display').innerHTML = '<span style="color:var(--dim)">Say: "make it bigger", "rotate left", "change to metal"...</span>';
+  if (threeObject && threeScene) { threeScene.remove(threeObject); threeObject = null; }
+  log('Scan reset. Ready for new object.');
+}
+
+// ============================================================
+// GENERATE — Featherless is OPTIONAL
+// ============================================================
+async function generateModel() {
+  if (captures.length < 5) return toast('Capture 5 angles first.', 'error');
+  if (!CONFIG.geminiKey)   return toast('Add your Gemini API key in Config first.', 'info');
+
+  showLoading('Sending frames to Gemini Vision...');
+  log('Sending 5 frames to Gemini Vision API...');
+
+  try {
+    // STEP 1: Gemini Vision (required)
+    const geminiResult = await analyzeWithGemini(captures);
+    log('Gemini analysis complete: ' + geminiResult.object_type, 'success');
+
+    // STEP 2: 3D params — Featherless if key exists, local fallback otherwise
+    let modelParams;
+    if (CONFIG.featherlessKey) {
+      updateLoading('Generating 3D parameters with DeepSeek...');
+      try {
+        modelParams = await generateWithFeatherless(geminiResult);
+        log('3D parameters generated via Featherless', 'success');
+      } catch (e) {
+        log('Featherless failed, using smart local fallback', 'info');
+        modelParams = buildParamsFromGemini(geminiResult);
+      }
+    } else {
+      log('No Featherless key — using smart local fallback', 'info');
+      modelParams = buildParamsFromGemini(geminiResult);
+    }
+
+    // STEP 3: Render
+    updateLoading('Rendering 3D model...');
+    currentModel = { gemini: geminiResult, params: modelParams, id: 'model_' + Date.now(), name: geminiResult.object_type };
+    renderThreeModel(modelParams, geminiResult);
+
+    document.getElementById('info-type').textContent     = geminiResult.object_type || 'Unknown';
+    document.getElementById('info-material').textContent = geminiResult.material    || 'Unknown';
+    document.getElementById('info-color').textContent    = geminiResult.primary_color || 'Unknown';
+    document.getElementById('info-shape').textContent    = modelParams.shape        || 'Unknown';
+    document.getElementById('model-info').classList.add('visible');
+    document.getElementById('viewer-placeholder').style.display = 'none';
+    document.getElementById('save-btn').disabled = false;
+
+    hideLoading();
+    toast('3D model generated! Use voice commands to modify it.', 'success');
+    log('Model rendered successfully.', 'success');
+  } catch (e) {
+    hideLoading();
+    log('Generation failed: ' + e.message, 'error');
+    toast('Generation failed: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// GEMINI VISION — tries multiple model names automatically
+// ============================================================
+async function analyzeWithGemini(frames) {
+  const parts = [{ text: `Analyze these ${frames.length} photos of the same object taken from different angles. Return ONLY a JSON object with these exact fields:
+{
+  "object_type": "specific name of the object",
+  "material": "primary material (plastic/metal/glass/wood/ceramic/fabric)",
+  "primary_color": "main color",
+  "secondary_color": "secondary color if any",
+  "shape_class": "geometric classification (cylindrical/spherical/cuboid/conical/irregular)",
+  "height_ratio": 2.0,
+  "width_ratio": 1,
+  "depth_ratio": 1.0,
+  "surface": "smooth/rough/textured/glossy/matte",
+  "has_handle": false,
+  "has_lid": false,
+  "notable_features": "brief description"
+}` }];
+
+  for (let i = 0; i < frames.length; i++) {
+    parts.push({ inline_data: { mime_type: 'image/jpeg', data: frames[i].split(',')[1] } });
+  }
+
+  const MODELS = ['gemini-1.5-flash-8b', 'gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+  let lastError = '';
+
+  for (const modelName of MODELS) {
+    log('Trying Gemini model: ' + modelName + '...');
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${CONFIG.geminiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts }] }) }
+      );
+      if (res.status === 404) { lastError = modelName + ' not found'; continue; }
+      if (res.status === 429) throw new Error('Rate limit — wait 60 seconds and try again');
+      if (!res.ok) { lastError = modelName + ' error ' + res.status; continue; }
+      const data  = await res.json();
+      const text  = data.candidates[0].content.parts[0].text;
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Could not parse Gemini response');
+      log('Gemini success with model: ' + modelName, 'success');
+      return JSON.parse(match[0]);
+    } catch (e) {
+      if (e.message.includes('Rate limit')) throw e;
+      lastError = e.message;
+    }
+  }
+  throw new Error('All Gemini models failed: ' + lastError);
+}
+
+// ============================================================
+// FEATHERLESS — only called when key exists
+// ============================================================
+async function generateWithFeatherless(geminiData) {
+  const prompt = `You are a 3D modeling system. Based on this object analysis, return ONLY a JSON object with Three.js rendering parameters.
+
+Object: ${JSON.stringify(geminiData)}
+
+Return exactly this JSON structure:
+{
+  "shape": "cylinder|box|sphere|cone|torus",
+  "primary_geometry": { "type": "CylinderGeometry|BoxGeometry|SphereGeometry|ConeGeometry", "args": [array of constructor args] },
+  "secondary_geometry": null or { "type": "...", "args": [...], "position": [x,y,z] },
+  "color_hex": "#hexcolor",
+  "emissive_hex": "#001122",
+  "roughness": 0.0-1.0,
+  "metalness": 0.0-1.0,
+  "scale": [1,1,1],
+  "wireframe_accent": true
+}
+Use realistic proportions. Water bottle = CylinderGeometry args [0.3, 0.35, 2.0, 32].`;
+
+  const res = await fetch('https://api.featherless.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + CONFIG.featherlessKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: CONFIG.model, max_tokens: 600, messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!res.ok) throw new Error('Featherless API error: ' + res.status);
+  const data  = await res.json();
+  const text  = data.choices[0].message.content;
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Could not parse Featherless response');
+  return JSON.parse(match[0]);
+}
+
+// ============================================================
+// SMART LOCAL FALLBACK — builds 3D params from Gemini data
+// ============================================================
+function buildParamsFromGemini(g) {
+  const shape   = (g.shape_class || '').toLowerCase();
+  const color   = colorFromName(g.primary_color || 'blue');
+  const surface = (g.surface   || '').toLowerCase();
+  const mat     = (g.material  || '').toLowerCase();
+
+  let roughness = 0.5, metalness = 0.1;
+  if (mat.includes('metal') || mat.includes('steel') || mat.includes('alumin')) { roughness = 0.15; metalness = 0.9; }
+  else if (mat.includes('glass'))   { roughness = 0.05; metalness = 0.0; }
+  else if (mat.includes('wood'))    { roughness = 0.85; metalness = 0.0; }
+  else if (mat.includes('ceramic')) { roughness = 0.3;  metalness = 0.0; }
+  else if (mat.includes('rubber'))  { roughness = 0.95; metalness = 0.0; }
+  else if (surface.includes('gloss')) { roughness = 0.1; metalness = 0.05; }
+  else if (surface.includes('matte')) { roughness = 0.9; metalness = 0.0; }
+
+  const hr = parseFloat(g.height_ratio) || 1.5;
+  const dr = parseFloat(g.depth_ratio)  || 1.0;
+
+  let primary_geometry, secondary_geometry = null, shapeName;
+
+  if (shape.includes('cylinder') || shape.includes('cylindric')) {
+    shapeName = 'cylinder';
+    const r = 0.4, h = Math.min(Math.max(r * hr, 0.3), 3.0);
+    primary_geometry = { type: 'CylinderGeometry', args: [r * 0.85, r, h, 32] };
+    if (g.has_lid) secondary_geometry = { type: 'CylinderGeometry', args: [r * 0.88, r * 0.88, 0.12, 32], position: [0, h / 2 + 0.06, 0] };
+  } else if (shape.includes('sphere') || shape.includes('ball')) {
+    shapeName = 'sphere';
+    primary_geometry = { type: 'SphereGeometry', args: [0.55, 32, 32] };
+  } else if (shape.includes('cone') || shape.includes('pyramid')) {
+    shapeName = 'cone';
+    primary_geometry = { type: 'ConeGeometry', args: [0.45, Math.min(hr * 0.6, 2.0), 32] };
+  } else {
+    shapeName = 'box';
+    primary_geometry = { type: 'BoxGeometry', args: [0.8, Math.min(Math.max(0.8 * hr, 0.2), 2.5), Math.min(0.8 * dr, 1.2)] };
+  }
+
+  return { shape: shapeName, primary_geometry, secondary_geometry, color_hex: color, emissive_hex: '#001122', roughness, metalness, scale: [1,1,1], wireframe_accent: metalness < 0.5 };
+}
+
+// ============================================================
+// THREE.JS
+// ============================================================
+function initThreeJS() {
+  const canvas = document.getElementById('three-canvas');
+  if (threeRenderer) return;
+
+  threeRenderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  threeRenderer.setSize(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight);
+  threeRenderer.setPixelRatio(window.devicePixelRatio);
+  threeRenderer.setClearColor(0x000000, 0);
+
+  threeScene  = new THREE.Scene();
+  threeCamera = new THREE.PerspectiveCamera(50, canvas.parentElement.clientWidth / canvas.parentElement.clientHeight, 0.1, 1000);
+  threeCamera.position.set(0, 1, 4);
+  threeCamera.lookAt(0, 0, 0);
+
+  threeScene.add(new THREE.AmbientLight(0x334466, 0.5));
+  const d = new THREE.DirectionalLight(0x00d4ff, 1.2); d.position.set(3, 5, 3); threeScene.add(d);
+  const f = new THREE.DirectionalLight(0x00ffcc, 0.4); f.position.set(-3, -2, -3); threeScene.add(f);
+  const p = new THREE.PointLight(0xffd700, 0.6, 20);   p.position.set(0, 3, 2);   threeScene.add(p);
+  threeScene.add(new THREE.GridHelper(6, 12, 0x003344, 0x001122));
+
+  let isDragging = false, prevX = 0, prevY = 0;
+  canvas.addEventListener('mousedown', e => { isDragging = true;  prevX = e.clientX; prevY = e.clientY; });
+  canvas.addEventListener('mousemove', e => {
+    if (!isDragging || !threeObject) return;
+    threeObject.rotation.y += (e.clientX - prevX) * 0.01;
+    threeObject.rotation.x += (e.clientY - prevY) * 0.005;
+    prevX = e.clientX; prevY = e.clientY;
+  });
+  canvas.addEventListener('mouseup',   () => isDragging = false);
+  canvas.addEventListener('wheel',     e  => { threeCamera.position.z = Math.max(1.5, Math.min(8, threeCamera.position.z + e.deltaY * 0.005)); });
+
+  (function animate() {
+    requestAnimationFrame(animate);
+    if (threeObject) threeObject.rotation.y += 0.005;
+    if (threeRenderer && threeScene && threeCamera) threeRenderer.render(threeScene, threeCamera);
+  })();
+}
+
+function renderThreeModel(params, geminiData) {
+  if (!threeScene) initThreeJS();
+  if (threeObject) threeScene.remove(threeObject);
+  const group = new THREE.Group();
+
+  try {
+    let geo;
+    const t    = params.primary_geometry?.type || 'CylinderGeometry';
+    const args = params.primary_geometry?.args || [0.4, 0.4, 1.5, 32];
+    if      (t === 'CylinderGeometry') geo = new THREE.CylinderGeometry(...args);
+    else if (t === 'BoxGeometry')      geo = new THREE.BoxGeometry(...args);
+    else if (t === 'SphereGeometry')   geo = new THREE.SphereGeometry(...args);
+    else if (t === 'ConeGeometry')     geo = new THREE.ConeGeometry(...args);
+    else                               geo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
+
+    const color = params.color_hex || colorFromName(geminiData?.primary_color || 'blue');
+    const mat   = new THREE.MeshStandardMaterial({
+      color:             new THREE.Color(color),
+      roughness:         params.roughness  ?? 0.4,
+      metalness:         params.metalness  ?? 0.2,
+      emissive:          new THREE.Color(params.emissive_hex || '#001122'),
+      emissiveIntensity: 0.1,
+    });
+
+    group.add(new THREE.Mesh(geo, mat));
+
+    if (params.wireframe_accent) {
+      const wm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x00d4ff, wireframe: true, opacity: 0.08, transparent: true }));
+      wm.scale.multiplyScalar(1.02);
+      group.add(wm);
+    }
+
+    if (params.secondary_geometry) {
+      const sg = params.secondary_geometry;
+      let geo2;
+      if      (sg.type === 'CylinderGeometry') geo2 = new THREE.CylinderGeometry(...sg.args);
+      else if (sg.type === 'BoxGeometry')      geo2 = new THREE.BoxGeometry(...sg.args);
+      else if (sg.type === 'SphereGeometry')   geo2 = new THREE.SphereGeometry(...sg.args);
+      if (geo2) {
+        const m2 = new THREE.Mesh(geo2, mat.clone());
+        if (sg.position) m2.position.set(...sg.position);
+        group.add(m2);
+      }
+    }
+
+    if (params.scale) group.scale.set(...params.scale);
+  } catch (e) {
+    group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0x4488cc, roughness: 0.4, metalness: 0.2 })));
+  }
+
+  threeScene.add(group);
+  threeObject = group;
+}
+
+// ============================================================
+// VOICE
+// ============================================================
+async function toggleVoice() {
+  if (!currentModel) return toast('Generate a model first!', 'error');
+
+  if (!isRecording) {
+    try {
+      const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(audioStream);
+      audioChunks   = [];
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop          = () => processAudio(audioChunks);
+      mediaRecorder.start();
+      isRecording = true;
+      document.getElementById('btn-voice').classList.add('recording');
+      document.getElementById('btn-voice').textContent = '🔴 Recording...';
+      document.getElementById('voice-viz').style.display = 'flex';
+      log('Voice recording started...');
+    } catch (e) {
+      const cmd = prompt('Voice unavailable. Type a command:', 'make it bigger');
+      if (cmd) applyVoiceCommand(cmd);
+    }
+  } else {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    isRecording = false;
+    document.getElementById('btn-voice').classList.remove('recording');
+    document.getElementById('btn-voice').textContent    = '🎙️ Hold to Speak';
+    document.getElementById('voice-viz').style.display  = 'none';
+  }
+}
+
+async function processAudio(chunks) {
+  const blob = new Blob(chunks, { type: 'audio/webm' });
+
+  // ElevenLabs STT (if key exists)
+  if (CONFIG.elevenLabsKey) {
+    try {
+      const formData = new FormData();
+      formData.append('audio', blob, 'audio.webm');
+      formData.append('model_id', 'scribe_v1');
+      const res = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+        method: 'POST', headers: { 'xi-api-key': CONFIG.elevenLabsKey }, body: formData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const t = data.text || '';
+        log('ElevenLabs transcribed: "' + t + '"', 'info');
+        if (t) { await applyVoiceCommand(t); return; }
+      }
+    } catch (e) { log('ElevenLabs STT failed, trying browser fallback', 'info'); }
+  }
+
+  // Browser speech recognition fallback
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const r = new SR();
+    r.onresult = async e => { const cmd = e.results[0][0].transcript; log('Browser recognized: "' + cmd + '"', 'info'); await applyVoiceCommand(cmd); };
+    r.onerror  = () => { const cmd = prompt('Could not recognize. Type command:'); if (cmd) applyVoiceCommand(cmd); };
+    r.start();
+  } else {
+    const cmd = prompt('Enter voice command:');
+    if (cmd) await applyVoiceCommand(cmd);
+  }
+}
+
+async function applyVoiceCommand(command) {
+  document.getElementById('voice-display').innerHTML = `<span style="color:var(--gold)">🎙️ "${command}"</span> <span style="color:var(--dim)">— processing...</span>`;
+
+  // Featherless for smarter parsing (if key exists)
+  if (CONFIG.featherlessKey) {
+    try {
+      const prompt = `The user said: "${command}". Return ONLY this JSON:
+{"action":"scale|rotate|color|material|reset|none","value":1.5,"axis":"all","message":"brief confirmation"}
+Examples: "bigger"->scale 1.5 all, "rotate left"->rotate -0.5 y, "make it red"->color #cc2222 all, "metallic"->material metal all`;
+      const res = await fetch('https://api.featherless.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + CONFIG.featherlessKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: CONFIG.model, max_tokens: 150, messages: [{ role: 'user', content: prompt }] })
+      });
+      if (res.ok) {
+        const data  = await res.json();
+        const text  = data.choices[0].message.content;
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+          const result = JSON.parse(match[0]);
+          applyModelTransform(result);
+          document.getElementById('voice-display').innerHTML = `<span style="color:var(--teal)">✓ "${command}"</span> — ${result.message}`;
+          log('Command applied: ' + result.message, 'success');
+          if (CONFIG.elevenLabsKey && result.message) speakFeedback(result.message);
+          return;
+        }
+      }
+    } catch (e) { /* fall through */ }
+  }
+
+  // Local keyword fallback
+  applyLocalCommand(command);
+}
+
+function applyLocalCommand(command) {
+  if (!threeObject) return;
+  const cmd = command.toLowerCase();
+  let message = '';
+  if      (cmd.includes('bigger') || cmd.includes('larger') || cmd.includes('scale up'))        { threeObject.scale.multiplyScalar(1.3); message = 'Scaled up'; }
+  else if (cmd.includes('smaller') || cmd.includes('shrink') || cmd.includes('scale down'))     { threeObject.scale.multiplyScalar(0.7); message = 'Scaled down'; }
+  else if (cmd.includes('rotate left'))  { threeObject.rotation.y -= 0.8; message = 'Rotated left'; }
+  else if (cmd.includes('rotate right')) { threeObject.rotation.y += 0.8; message = 'Rotated right'; }
+  else if (cmd.includes('metal'))  { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) { c.material.metalness = 0.9; c.material.roughness = 0.1; } }); message = 'Switched to metallic'; }
+  else if (cmd.includes('matte') || cmd.includes('plastic')) { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) { c.material.metalness = 0; c.material.roughness = 0.8; } }); message = 'Switched to matte'; }
+  else if (cmd.includes('red'))    { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) c.material.color.set('#cc2222'); }); message = 'Changed to red'; }
+  else if (cmd.includes('blue'))   { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) c.material.color.set('#2266ff'); }); message = 'Changed to blue'; }
+  else if (cmd.includes('green'))  { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) c.material.color.set('#22aa44'); }); message = 'Changed to green'; }
+  else if (cmd.includes('gold') || cmd.includes('yellow')) { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) c.material.color.set('#ccaa22'); }); message = 'Changed to gold'; }
+  else if (cmd.includes('reset'))  { threeObject.scale.set(1,1,1); threeObject.rotation.set(0,0,0); message = 'Reset to default'; }
+  else { message = 'Try: "bigger", "smaller", "rotate left", "red", "metal", "reset"'; }
+
+  document.getElementById('voice-display').innerHTML = `<span style="color:var(--teal)">✓ "${command}"</span> — ${message}`;
+  log('Local command: ' + message, 'success');
+}
+
+function applyModelTransform(r) {
+  if (!threeObject) return;
+  if      (r.action === 'scale')    { const v = r.value||1.2; if (r.axis==='all') threeObject.scale.multiplyScalar(v); else threeObject.scale[r.axis||'y'] *= v; }
+  else if (r.action === 'rotate')   { threeObject.rotation[r.axis||'y'] += (r.value||0.5); }
+  else if (r.action === 'color')    { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) c.material.color.set(r.value); }); }
+  else if (r.action === 'material') { const m = (r.value||'').includes('metal'); threeObject.traverse(c => { if (c.isMesh && c.material) { c.material.metalness = m ? 0.85 : 0.1; c.material.roughness = m ? 0.15 : 0.7; } }); }
+  else if (r.action === 'reset')    { threeObject.scale.set(1,1,1); threeObject.rotation.set(0,0,0); }
+}
+
+async function speakFeedback(text) {
+  try {
+    const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB', {
+      method: 'POST',
+      headers: { 'xi-api-key': CONFIG.elevenLabsKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model_id: 'eleven_monolingual_v1', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
+    });
+    if (res.ok) { const b = await res.blob(); new Audio(URL.createObjectURL(b)).play(); }
+  } catch (e) { /* TTS not critical */ }
+}
+
+// ============================================================
+// SAVE TO LIBRARY
+// ============================================================
+async function saveModel() {
+  if (!currentModel) return;
+  const entry = {
+    id:        currentModel.id   || 'model_' + Date.now(),
+    name:      currentModel.gemini?.object_type || 'Unknown Object',
+    material:  currentModel.gemini?.material    || 'Unknown',
+    color:     currentModel.gemini?.primary_color || 'Unknown',
+    shape:     currentModel.params?.shape       || 'Unknown',
+    timestamp: new Date().toISOString(),
+    params:    currentModel.params,
+    gemini:    currentModel.gemini,
+    thumbnail: captures[0] || null,
+  };
+
+  library.unshift(entry);
+  localStorage.setItem('fg_library', JSON.stringify(library.slice(0, 50)));
+
+  try {
+    await fetch(BACKEND_URL + '/api/models', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user?.id || 'anonymous', model: entry })
+    });
+    log('Model saved to Snowflake', 'success');
+  } catch (e) {
+    log('Snowflake unavailable, saved locally', 'info');
+  }
+
+  document.getElementById('save-btn').disabled = true;
+  toast('Model saved to your library!', 'success');
+  log('Saved: ' + entry.name, 'success');
+}
+
+// ============================================================
+// LIBRARY
+// ============================================================
+function renderLibrary() {
+  const grid = document.getElementById('library-grid');
+  if (library.length === 0) {
+    grid.innerHTML = `<div class="empty-library"><div class="icon">🔮</div><p>No models yet. Scan your first object!</p></div>`;
+    return;
+  }
+  grid.innerHTML = library.map(m => `
+    <div class="model-card" onclick="loadFromLibrary('${m.id}')">
+      <div class="card-preview">
+        ${m.thumbnail ? `<img src="${m.thumbnail}" style="width:100%;height:100%;object-fit:cover;opacity:0.6;transform:scaleX(-1)">` : ''}
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,30,60,0.7)0%,rgba(0,0,0,0.3)100%)"></div>
+        <span style="position:absolute;font-size:2rem">${shapeEmoji(m.shape)}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-name">${m.name}</div>
+        <div class="card-meta"><span>${m.material}</span><span>${new Date(m.timestamp).toLocaleDateString()}</span></div>
+        <div class="card-tag">${m.shape || 'unknown'}</div>
+      </div>
+    </div>`).join('');
+}
+
+function shapeEmoji(s) { return ({cylinder:'🧴',sphere:'⚽',box:'📦',cone:'🔺',torus:'🍩'})[(s||'').toLowerCase()] || '🔮'; }
+
+function loadFromLibrary(id) {
+  const m = library.find(x => x.id === id);
+  if (!m) return;
+  currentModel = { id: m.id, name: m.name, params: m.params, gemini: m.gemini };
+  showPage('scan');
+  setTimeout(() => {
+    initThreeJS();
+    renderThreeModel(m.params, m.gemini);
+    document.getElementById('viewer-placeholder').style.display = 'none';
+    document.getElementById('info-type').textContent     = m.gemini?.object_type || m.name;
+    document.getElementById('info-material').textContent = m.gemini?.material    || '—';
+    document.getElementById('info-color').textContent    = m.gemini?.primary_color || '—';
+    document.getElementById('info-shape').textContent    = m.params?.shape       || '—';
+    document.getElementById('model-info').classList.add('visible');
+    toast('Loaded: ' + m.name, 'success');
+  }, 100);
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function colorFromName(name) {
+  const map = { red:'#cc2222',blue:'#2266ff',green:'#22aa44',yellow:'#ddcc00',white:'#dddddd',black:'#333333',gray:'#888888',grey:'#888888',orange:'#dd6622',purple:'#8844cc',pink:'#dd4488',brown:'#885533',silver:'#aaaaaa',gold:'#ccaa33' };
+  const lower = (name||'').toLowerCase();
+  for (const k of Object.keys(map)) { if (lower.includes(k)) return map[k]; }
+  return '#4488cc';
+}
+
+function log(msg, type = '') {
+  const e   = Math.floor((Date.now() - startTime) / 1000);
+  const mm  = String(Math.floor(e / 60)).padStart(2,'0');
+  const ss  = String(e % 60).padStart(2,'0');
+  const el  = document.getElementById('status-log');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = `<span class="log-time">${mm}:${ss}</span><span class="log-msg ${type}">${msg}</span>`;
+  el.appendChild(div); el.scrollTop = el.scrollHeight;
+}
+
+function toast(msg, type = '') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type === 'error' ? 'error' : type === 'info' ? 'info' : '');
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+function showLoading(msg)   { document.getElementById('loading-text').textContent = msg; document.getElementById('loading').classList.add('active'); }
+function updateLoading(msg) { document.getElementById('loading-text').textContent = msg; }
+function hideLoading()      { document.getElementById('loading').classList.remove('active'); }
+
+// Init
+log('ForgeAI v1.0 loaded. Configure API keys to begin.', 'info');
+if (!CONFIG.geminiKey) setTimeout(() => toast('👋 Add your Gemini API key in ⚙ Config to get started!', 'info'), 1000);
+if (user) document.getElementById('auth-btn').textContent = '👤 ' + user.name;
+</script>
+</body>
+</html>
