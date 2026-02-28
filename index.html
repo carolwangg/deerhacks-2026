@@ -7,7 +7,252 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    :root {
+      --bg: #020810;
+      --panel: #060f1a;
+      --panel2: #0a1520;
+      --border: #0d2233;
+      --teal: #00d4ff;
+      --green: #00ffcc;
+      --gold: #ffd700;
+      --red: #ff4455;
+      --dim: #4a6680;
+      --text: #c8dae8;
+      --bright: #e8f4ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+    /* Stars */
+    #stars { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .star { position: absolute; border-radius: 50%; background: #fff; animation: twinkle var(--d,3s) ease-in-out infinite; opacity: 0; }
+    @keyframes twinkle { 0%,100%{opacity:0} 50%{opacity:var(--o,0.6)} }
+
+    .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* Header */
+    header { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid var(--border); background: rgba(2,8,16,0.85); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100; }
+    .logo { font-family: 'Orbitron', monospace; font-size: 1.4rem; font-weight: 900; letter-spacing: 3px; color: var(--bright); }
+    .logo span { color: var(--teal); }
+    nav { display: flex; gap: 8px; align-items: center; }
+    .nav-btn { background: none; border: 1px solid transparent; color: var(--dim); font-family: 'Orbitron', monospace; font-size: 0.65rem; letter-spacing: 2px; padding: 8px 16px; cursor: pointer; transition: all 0.2s; border-radius: 4px; }
+    .nav-btn:hover, .nav-btn.active { color: var(--teal); border-color: var(--teal); background: rgba(0,212,255,0.06); }
+    .auth-btn { background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,255,204,0.1)); border: 1px solid var(--teal); color: var(--teal); font-family: 'Orbitron', monospace; font-size: 0.6rem; letter-spacing: 1px; padding: 8px 16px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+    .auth-btn:hover { background: rgba(0,212,255,0.2); }
+
+    /* Pages */
+    .page { display: none; padding: 24px 32px; flex: 1; }
+    .page.active { display: block; }
+
+    /* Home */
+    .hero { text-align: center; padding: 60px 20px 40px; }
+    .hero h1 { font-family: 'Orbitron', monospace; font-size: clamp(2.2rem, 5vw, 4rem); font-weight: 900; line-height: 1.1; }
+    .line1 { display: block; color: var(--bright); }
+    .line2 { display: block; color: var(--teal); text-shadow: 0 0 40px rgba(0,212,255,0.4); }
+    .hero-sub { max-width: 600px; margin: 20px auto 0; color: var(--dim); font-size: 1rem; line-height: 1.7; }
+    .cta-row { margin-top: 32px; display: flex; justify-content: center; gap: 12px; }
+    .cta-primary { background: linear-gradient(135deg, var(--teal), var(--green)); color: #000; font-family: 'Orbitron', monospace; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px; padding: 14px 32px; border: none; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+    .cta-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,212,255,0.3); }
+    .pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; max-width: 900px; margin: 40px auto; }
+    .step { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px 16px; text-align: center; transition: border-color 0.2s; }
+    .step:hover { border-color: rgba(0,212,255,0.3); }
+    .step-num { font-family: 'Orbitron', monospace; font-size: 0.6rem; color: var(--dim); letter-spacing: 2px; margin-bottom: 8px; }
+    .step-icon { font-size: 1.8rem; margin-bottom: 8px; }
+    .step-title { font-family: 'Orbitron', monospace; font-size: 0.7rem; color: var(--teal); letter-spacing: 1px; margin-bottom: 6px; }
+    .step-desc { font-size: 0.8rem; color: var(--dim); line-height: 1.5; }
+
+    /* Scan layout */
+    .section-title { font-family: 'Orbitron', monospace; font-size: 1rem; color: var(--bright); letter-spacing: 3px; margin-bottom: 4px; }
+    .section-sub { font-size: 0.85rem; color: var(--dim); margin-bottom: 20px; }
+    .scan-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .scan-layout { grid-template-columns: 1fr; } }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .panel-title { font-family: 'Orbitron', monospace; font-size: 0.65rem; letter-spacing: 2px; color: var(--teal); margin-bottom: 12px; text-transform: uppercase; }
+
+    /* Webcam */
+    #webcam-container { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    #webcam { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    #hidden-canvas { display: none; }
+    .webcam-overlay { position: absolute; inset: 0; pointer-events: none; }
+    .scan-corner { position: absolute; width: 20px; height: 20px; border-color: var(--teal); border-style: solid; }
+    .scan-corner.tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+    .scan-corner.tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+    .scan-corner.bl { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+    .scan-corner.br { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+    .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--teal), transparent); top: 0; opacity: 0; }
+    .scan-line.active { animation: scanMove 2s ease-in-out infinite; opacity: 1; }
+    @keyframes scanMove { 0%{top:0} 50%{top:calc(100% - 2px)} 100%{top:0} }
+    .capture-count { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-family: 'Orbitron', monospace; font-size: 0.6rem; color: var(--teal); letter-spacing: 2px; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 20px; }
+
+    .captures-row { display: flex; gap: 8px; margin-top: 12px; }
+    .thumb { flex: 1; aspect-ratio: 1; border: 1px dashed var(--border); border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .thumb.empty::before { content: attr(data-n); font-family: 'Orbitron', monospace; font-size: 0.6rem; color: var(--dim); }
+    .thumb.filled { border-color: var(--teal); border-style: solid; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+    .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .btn { font-family: 'Orbitron', monospace; font-size: 0.6rem; letter-spacing: 1px; padding: 10px 16px; border-radius: 4px; cursor: pointer; transition: all 0.2s; border: 1px solid; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-capture { background: rgba(0,212,255,0.1); border-color: var(--teal); color: var(--teal); flex: 1; }
+    .btn-capture:not(:disabled):hover { background: rgba(0,212,255,0.2); }
+    .btn-outline { background: none; border-color: var(--dim); color: var(--dim); }
+    .btn-outline:hover { border-color: var(--text); color: var(--text); }
+    .btn-generate { background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,255,204,0.1)); border-color: var(--green); color: var(--green); flex: 1; font-size: 0.65rem; }
+    .btn-generate:not(:disabled):hover { background: rgba(0,255,204,0.2); box-shadow: 0 0 20px rgba(0,255,204,0.2); }
+    .btn-voice { background: rgba(255,215,0,0.1); border-color: var(--gold); color: var(--gold); flex: 1; }
+    .btn-voice:hover { background: rgba(255,215,0,0.2); }
+    .btn-voice.recording { background: rgba(255,68,85,0.2); border-color: var(--red); color: var(--red); animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+    .progress-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 12px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, var(--teal), var(--green)); border-radius: 2px; transition: width 0.3s ease; width: 0; }
+
+    /* 3D Viewer */
+    #viewer-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    #three-canvas { width: 100%; height: 100%; display: block; }
+    .viewer-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; }
+    .viewer-placeholder .icon { font-size: 2.5rem; margin-bottom: 8px; }
+
+    /* Model info */
+    .model-info { display: none; margin-top: 12px; }
+    .model-info.visible { display: block; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .info-item { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; }
+    .info-item label { display: block; font-family: 'Orbitron', monospace; font-size: 0.55rem; color: var(--dim); letter-spacing: 1px; margin-bottom: 4px; }
+    .info-item span { font-size: 0.85rem; color: var(--bright); font-weight: 600; }
+
+    /* ========================================================
+       NEW: AI Analysis Chain Panel
+    ======================================================== */
+    .ai-chain-panel { margin-top: 16px; }
+    .chain-steps { display: flex; flex-direction: column; gap: 10px; }
+    .chain-step { background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; transition: border-color 0.3s; }
+    .chain-step.active { border-color: rgba(0,212,255,0.4); }
+    .chain-step.done { border-color: rgba(0,255,204,0.3); }
+    .chain-step.error-state { border-color: rgba(255,68,85,0.4); }
+    .chain-step-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
+    .chain-step-num { font-family: 'Orbitron', monospace; font-size: 0.55rem; color: var(--dim); background: var(--border); padding: 3px 7px; border-radius: 3px; }
+    .chain-step-title { font-family: 'Orbitron', monospace; font-size: 0.6rem; letter-spacing: 1px; color: var(--text); flex: 1; }
+    .chain-step-status { font-size: 0.7rem; }
+    .chain-step-body { padding: 0 14px 12px; display: none; }
+    .chain-step.active .chain-step-body,
+    .chain-step.done .chain-step-body { display: block; }
+
+    .confidence-bar { height: 4px; background: var(--border); border-radius: 2px; margin: 8px 0; overflow: hidden; }
+    .confidence-fill { height: 100%; border-radius: 2px; transition: width 1s ease; width: 0; }
+    .confidence-fill.high { background: linear-gradient(90deg, var(--green), var(--teal)); }
+    .confidence-fill.medium { background: linear-gradient(90deg, var(--gold), #ff9900); }
+    .confidence-fill.low { background: linear-gradient(90deg, var(--red), #ff9900); }
+    .confidence-label { font-family: 'Orbitron', monospace; font-size: 0.55rem; color: var(--dim); display: flex; justify-content: space-between; }
+
+    .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+    .analysis-item { background: rgba(0,0,0,0.3); border-radius: 4px; padding: 7px 10px; }
+    .analysis-item label { display: block; font-size: 0.6rem; color: var(--dim); margin-bottom: 2px; }
+    .analysis-item span { font-size: 0.8rem; color: var(--bright); font-weight: 600; }
+
+    .search-result { background: rgba(0,0,0,0.3); border-radius: 4px; padding: 10px 12px; margin-top: 8px; }
+    .search-result a { color: var(--teal); font-size: 0.8rem; word-break: break-all; }
+    .search-result p { font-size: 0.75rem; color: var(--dim); margin-top: 4px; line-height: 1.5; }
+
+    .instructions-list { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .instructions-list li { display: flex; gap: 8px; font-size: 0.78rem; color: var(--text); line-height: 1.5; background: rgba(0,0,0,0.3); border-radius: 4px; padding: 8px 10px; }
+    .instructions-list li .inst-num { font-family: 'Orbitron', monospace; font-size: 0.55rem; color: var(--teal); background: rgba(0,212,255,0.1); padding: 2px 6px; border-radius: 3px; flex-shrink: 0; align-self: flex-start; margin-top: 2px; }
+
+    .thinking-dots { display: inline-flex; gap: 4px; }
+    .thinking-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); animation: dot 1.2s ease-in-out infinite; }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+
+    /* Voice */
+    .voice-viz { display: none; align-items: flex-end; gap: 3px; height: 24px; padding: 0 8px; }
+    .voice-bar { width: 3px; background: var(--gold); border-radius: 2px; animation: voiceAnim 0.5s ease-in-out infinite alternate; }
+    .voice-bar:nth-child(1) { animation-delay: 0.0s; }
+    .voice-bar:nth-child(2) { animation-delay: 0.1s; }
+    .voice-bar:nth-child(3) { animation-delay: 0.2s; }
+    .voice-bar:nth-child(4) { animation-delay: 0.3s; }
+    .voice-bar:nth-child(5) { animation-delay: 0.4s; }
+    @keyframes voiceAnim { from{height:4px} to{height:20px} }
+    .voice-command-display { margin-top: 8px; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem; min-height: 36px; }
+
+    .save-btn { width: 100%; margin-top: 12px; background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,165,0,0.1)); border: 1px solid var(--gold); color: var(--gold); font-family: 'Orbitron', monospace; font-size: 0.6rem; letter-spacing: 2px; padding: 12px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+    .save-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .save-btn:not(:disabled):hover { background: rgba(255,215,0,0.25); box-shadow: 0 0 20px rgba(255,215,0,0.15); }
+
+    /* Status log */
+    .status-log { height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.72rem; background: rgba(0,0,0,0.4); border-radius: 4px; padding: 8px; }
+    .log-line { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .log-time { color: var(--dim); flex-shrink: 0; }
+    .log-msg { color: var(--text); }
+    .log-msg.success { color: var(--green); }
+    .log-msg.error { color: var(--red); }
+    .log-msg.info { color: var(--teal); }
+
+    /* Library */
+    .library-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .model-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; }
+    .model-card:hover { border-color: rgba(0,212,255,0.3); transform: translateY(-2px); }
+    .card-preview { height: 130px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+    .card-body { padding: 12px; }
+    .card-name { font-size: 0.85rem; color: var(--bright); font-weight: 600; margin-bottom: 4px; }
+    .card-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--dim); }
+    .card-tag { display: inline-block; margin-top: 6px; font-family: 'Orbitron', monospace; font-size: 0.5rem; letter-spacing: 1px; color: var(--teal); background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); padding: 2px 8px; border-radius: 3px; }
+    .empty-library { grid-column: 1/-1; text-align: center; padding: 60px; color: var(--dim); }
+    .empty-library .icon { font-size: 3rem; margin-bottom: 12px; }
+
+    /* Loading overlay */
+    .loading-overlay { position: fixed; inset: 0; background: rgba(2,8,16,0.9); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 20px; z-index: 1000; backdrop-filter: blur(8px); }
+    .loading-overlay.active { display: flex; }
+    .loader-ring { width: 60px; height: 60px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .loader-text { font-family: 'Orbitron', monospace; font-size: 0.7rem; letter-spacing: 3px; color: var(--teal); }
+    .loader-sub { font-size: 0.8rem; color: var(--dim); }
+
+    /* Toast */
+    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
+    .toast { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--teal); padding: 10px 16px; border-radius: 4px; font-size: 0.82rem; color: var(--text); animation: slideIn 0.3s ease; max-width: 300px; }
+    .toast.error { border-left-color: var(--red); }
+    .toast.info { border-left-color: var(--gold); }
+    @keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+
+    /* Input mode tabs */
+    .input-tabs { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .input-tab { flex: 1; background: none; border: none; color: var(--dim); font-family: 'Orbitron', monospace; font-size: 0.58rem; letter-spacing: 1px; padding: 10px 8px; cursor: pointer; transition: all 0.2s; }
+    .input-tab.active { background: rgba(0,212,255,0.1); color: var(--teal); }
+    .input-tab:hover:not(.active) { background: rgba(255,255,255,0.04); color: var(--text); }
+
+    /* Upload zone */
+    #upload-zone { display: none; }
+    #upload-zone.active { display: block; }
+    #camera-zone { display: block; }
+    #camera-zone.hidden { display: none; }
+    #fullvideo-zone { display: none; }
+    #fullvideo-zone.active { display: block; }
+
+    .drop-area { position: relative; border: 2px dashed var(--border); border-radius: 8px; aspect-ratio: 4/3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: all 0.25s; background: rgba(0,0,0,0.3); overflow: hidden; }
+    .drop-area:hover, .drop-area.dragover { border-color: var(--teal); background: rgba(0,212,255,0.04); }
+    .drop-area .drop-icon { font-size: 2.5rem; pointer-events: none; }
+    .drop-area .drop-label { font-family: 'Orbitron', monospace; font-size: 0.65rem; letter-spacing: 2px; color: var(--teal); pointer-events: none; }
+    .drop-area .drop-sub { font-size: 0.75rem; color: var(--dim); pointer-events: none; }
+    .drop-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+    /* Video scrubber */
+    #video-scrubber-wrap { display: none; margin-top: 10px; }
+    #video-scrubber-wrap.active { display: block; }
+    #video-preview { width: 100%; border-radius: 6px; border: 1px solid var(--border); background: #000; display: block; }
+    .scrubber-controls { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    #video-scrubber { flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px; background: var(--border); outline: none; cursor: pointer; }
+    #video-scrubber::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--teal); cursor: pointer; }
+    .scrubber-time { font-family: 'Orbitron', monospace; font-size: 0.55rem; color: var(--dim); white-space: nowrap; }
+    .btn-grab { background: rgba(0,255,204,0.1); border-color: var(--green); color: var(--green); font-size: 0.58rem; padding: 7px 14px; }
+    .btn-grab:hover { background: rgba(0,255,204,0.2); }
+
+    /* Upload thumb strip badge */
+    .thumb .thumb-badge { position: absolute; bottom: 2px; right: 2px; font-size: 0.45rem; font-family: 'Orbitron', monospace; background: rgba(0,212,255,0.8); color: #000; padding: 1px 4px; border-radius: 2px; }
+  </style>
 </head>
 <body>
 
@@ -19,7 +264,7 @@
     <nav>
       <button class="nav-btn active" onclick="showPage('home')">Home</button>
       <button class="nav-btn" onclick="showPage('scan')">Scan</button>
-      <button class="nav-btn" onclick="showPage('library')">Library</button>
+      <button class="nav-btn" onclick="testAPI()">Library</button>
       <button class="auth-btn" onclick="toggleAuth()" id="auth-btn">Sign In</button>
     </nav>
   </header>
@@ -28,57 +273,181 @@
   <div id="page-home" class="page active">
     <div class="hero">
       <h1><span class="line1">SCAN YOUR WORLD</span><span class="line2">OWN IT IN 3D</span></h1>
-      <p class="hero-sub">Point your camera at any real object, spin it slowly, and ForgeAI reconstructs it as an interactive 3D model — powered by Gemini Vision and voice-controlled via ElevenLabs.</p>
+      <p class="hero-sub">Point your camera at any real object, spin it slowly, and ForgeAI reconstructs it as an interactive 3D model — powered by a 3-step Gemini Vision chain for maximum accuracy.</p>
       <div class="cta-row">
         <button class="cta-primary" onclick="showPage('scan')">Start Scanning</button>
-        <button class="cta-secondary" onclick="showPage('library')">View Library</button>
       </div>
     </div>
     <div class="pipeline">
       <div class="step"><div class="step-num">01</div><div class="step-icon">📸</div><div class="step-title">Capture</div><div class="step-desc">Hold your object in front of the camera and capture 5 angles as you slowly rotate it.</div></div>
-      <div class="step"><div class="step-num">02</div><div class="step-icon">🧠</div><div class="step-title">Analyze</div><div class="step-desc">Gemini Vision analyzes all frames simultaneously — extracting shape, texture, material, and dimensions.</div></div>
-      <div class="step"><div class="step-num">03</div><div class="step-icon">⚡</div><div class="step-title">Generate</div><div class="step-desc">3D parameters are built from Gemini's analysis and rendered live with Three.js.</div></div>
-      <div class="step"><div class="step-num">04</div><div class="step-icon">🎙️</div><div class="step-title">Command</div><div class="step-desc">Use your voice to scale, rotate, retexture, or modify your 3D model in real time.</div></div>
-      <div class="step"><div class="step-num">05</div><div class="step-icon">☁️</div><div class="step-title">Save</div><div class="step-desc">Your 3D library is stored in Snowflake — searchable, shareable, exportable to Blender.</div></div>
+      <div class="step"><div class="step-num">02</div><div class="step-icon">🧠</div><div class="step-title">Detect</div><div class="step-desc">Gemini Vision identifies the object with confidence score — confirming what it sees before deep analysis.</div></div>
+      <div class="step"><div class="step-num">03</div><div class="step-icon">🔬</div><div class="step-title">Analyze</div><div class="step-desc">Full product identification: material, size, colour, brand, model number, and confidence score.</div></div>
+      <div class="step"><div class="step-num">04</div><div class="step-icon">🔗</div><div class="step-title">Match</div><div class="step-desc">Gemini finds the best online 3D model reference and gives 5 specific instructions to improve accuracy.</div></div>
+      <div class="step"><div class="step-num">05</div><div class="step-icon">⚡</div><div class="step-title">Render</div><div class="step-desc">Three.js renders the model using all gathered intelligence, with voice control to refine it further.</div></div>
     </div>
   </div>
 
   <!-- SCAN -->
   <div id="page-scan" class="page">
     <div class="section-title">3D Scanner</div>
-    <div class="section-sub">Capture 5 angles of your object, then generate its 3D model</div>
+    <div class="section-sub">Capture 5 angles of your object, then run the AI analysis chain</div>
     <div class="scan-layout">
+      <!-- LEFT COLUMN -->
       <div>
         <div class="panel">
-          <div class="panel-title">Live Camera Feed</div>
-          <div id="webcam-container">
-            <video id="webcam" autoplay playsinline muted></video>
-            <canvas id="hidden-canvas" style="display:none"></canvas>
-            <div class="webcam-overlay">
-              <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
-              <div class="scan-corner bl"></div><div class="scan-corner br"></div>
-              <div class="scan-line" id="scan-line"></div>
-              <div class="capture-count" id="capture-count">0 / 5 CAPTURED</div>
+          <div class="input-tabs">
+            <button class="input-tab active" id="tab-camera" onclick="switchInputTab('camera')">📷 Live Camera</button>
+            <button class="input-tab" id="tab-upload" onclick="switchInputTab('upload')">📁 Upload Photos</button>
+            <button class="input-tab" id="tab-video" onclick="switchInputTab('video')">🎞️ Upload Video</button>
+            <button class="input-tab" id="tab-fullvideo" onclick="switchInputTab('fullvideo')">🎬 Full Video</button>
+          </div>
+
+          <!-- CAMERA ZONE -->
+          <div id="camera-zone">
+            <div class="panel-title">Live Camera Feed</div>
+            <div id="webcam-container">
+              <video id="webcam" autoplay playsinline muted></video>
+              <canvas id="hidden-canvas" style="display:none"></canvas>
+              <div class="webcam-overlay">
+                <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
+                <div class="scan-corner bl"></div><div class="scan-corner br"></div>
+                <div class="scan-line" id="scan-line"></div>
+                <div class="capture-count" id="capture-count">0 / 5 CAPTURED</div>
+              </div>
+            </div>
+            <div class="captures-row">
+              <div class="thumb empty" id="thumb-0" data-n="1"></div>
+              <div class="thumb empty" id="thumb-1" data-n="2"></div>
+              <div class="thumb empty" id="thumb-2" data-n="3"></div>
+              <div class="thumb empty" id="thumb-3" data-n="4"></div>
+              <div class="thumb empty" id="thumb-4" data-n="5"></div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-capture" id="btn-start-cam" onclick="toggleCamera()">Start Camera</button>
+              <button class="btn btn-capture" id="btn-capture" onclick="captureFrame()" disabled>📸 Capture Angle</button>
+              <button class="btn btn-outline" onclick="resetScan()">↺ Reset</button>
             </div>
           </div>
-          <div class="captures-row">
-            <div class="thumb empty" id="thumb-0" data-n="1"></div>
-            <div class="thumb empty" id="thumb-1" data-n="2"></div>
-            <div class="thumb empty" id="thumb-2" data-n="3"></div>
-            <div class="thumb empty" id="thumb-3" data-n="4"></div>
-            <div class="thumb empty" id="thumb-4" data-n="5"></div>
+
+          <!-- PHOTO UPLOAD ZONE -->
+          <div id="upload-zone">
+            <div class="panel-title">Upload Photos <span style="color:var(--dim);font-weight:400">(up to 5 angles)</span></div>
+            <div class="drop-area" id="photo-drop-area">
+              <div class="drop-icon">🖼️</div>
+              <div class="drop-label">Drop photos here</div>
+              <div class="drop-sub">JPG, PNG, WEBP · Up to 5 images</div>
+              <input type="file" id="photo-file-input" accept="image/jpeg,image/png,image/webp" multiple onchange="handlePhotoUpload(this.files)">
+            </div>
+            <!-- thumbs rendered by updateThumbStrip() -->
+            <div class="captures-row" id="photo-thumb-row" style="margin-top:10px"></div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn btn-outline" onclick="resetScan()">↺ Clear</button>
+            </div>
           </div>
-          <div class="btn-row">
-            <button class="btn btn-capture" id="btn-start-cam" onclick="startCamera()">Start Camera</button>
-            <button class="btn btn-capture" id="btn-capture" onclick="captureFrame()" disabled>📸 Capture Angle</button>
-            <button class="btn btn-outline" onclick="resetScan()">↺ Reset</button>
+
+          <!-- VIDEO UPLOAD ZONE -->
+          <div id="video-zone" style="display:none">
+            <div class="panel-title">Upload Video <span style="color:var(--dim);font-weight:400">(scrub to grab 5 frames)</span></div>
+            <div class="drop-area" id="video-drop-area">
+              <div class="drop-icon">🎬</div>
+              <div class="drop-label">Drop video here</div>
+              <div class="drop-sub">MP4, MOV, WEBM</div>
+              <input type="file" id="video-file-input" accept="video/mp4,video/quicktime,video/webm" onchange="handleVideoUpload(this.files[0])">
+            </div>
+            <div id="video-scrubber-wrap">
+              <video id="video-preview" preload="metadata" muted></video>
+              <div class="scrubber-controls">
+                <input type="range" id="video-scrubber" min="0" max="100" step="0.1" value="0" oninput="scrubVideo(this.value)">
+                <span class="scrubber-time" id="scrubber-time">0:00 / 0:00</span>
+                <button class="btn btn-grab" onclick="grabVideoFrame()">📸 Grab Frame</button>
+              </div>
+              <div style="font-size:0.72rem;color:var(--dim);margin-top:6px">Scrub to different angles of your object and grab 5 frames</div>
+            </div>
+            <!-- thumbs rendered by updateThumbStrip() -->
+            <div class="captures-row" id="video-thumb-row" style="margin-top:10px"></div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn btn-outline" onclick="resetScan()">↺ Clear</button>
+            </div>
           </div>
-          <div class="progress-bar"><div class="progress-fill" id="capture-progress"></div></div>
-          <div class="btn-row" style="margin-top:12px">
-            <button class="btn btn-generate" id="btn-generate" onclick="generateModel()" disabled>⚡ Generate 3D Model</button>
+
+          <!-- FULL VIDEO UPLOAD ZONE (send entire video to Gemini, then run pipeline) -->
+          <div id="fullvideo-zone">
+            <div class="panel-title">Upload Full Video <span style="color:var(--dim);font-weight:400">(entire video → Gemini → ML pipeline)</span></div>
+            <div class="drop-area" id="fullvideo-drop-area">
+              <div class="drop-icon">🎬</div>
+              <div class="drop-label">Drop full video here</div>
+              <div class="drop-sub">MP4, MOV, WEBM · Under 100MB for inline send</div>
+              <input type="file" id="fullvideo-file-input" accept="video/mp4,video/quicktime,video/webm" onchange="handleFullVideoUpload(this.files[0])">
+            </div>
+            <div id="fullvideo-preview-row" style="display:none; margin-top:10px; align-items:center; gap:10px;">
+              <span id="fullvideo-filename" style="font-size:0.8rem;color:var(--teal);"></span>
+              <button class="btn btn-outline" style="padding:6px 12px; font-size:0.55rem;" onclick="clearFullVideo()">✕ Clear</button>
+            </div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn btn-outline" onclick="clearFullVideo(); resetScan();">↺ Clear</button>
+            </div>
+          </div>
+
+          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" id="capture-progress"></div></div>
+          <div id="capture-count-bar" style="font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--teal);text-align:center;margin-top:6px;letter-spacing:2px">0 / 5 CAPTURED</div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn btn-generate" id="btn-generate" onclick="generateModel()" disabled>⚡ Run AI Chain + Generate 3D</button>
+          </div>
+        </div>
+
+        <!-- AI ANALYSIS CHAIN -->
+        <div class="panel ai-chain-panel" id="ai-chain-panel" style="margin-top:16px; display:none;">
+          <div class="panel-title">AI Analysis Chain</div>
+          <div class="chain-steps">
+
+            <!-- Step 1: Object Detection -->
+            <div class="chain-step" id="chain-step-1">
+              <div class="chain-step-header" onclick="toggleChainStep(1)">
+                <span class="chain-step-num">01</span>
+                <span class="chain-step-title">Object Detection</span>
+                <span class="chain-step-status" id="chain-status-1">⏳</span>
+              </div>
+              <div class="chain-step-body" id="chain-body-1">
+                <div id="chain-content-1" style="color:var(--dim);font-size:0.8rem;">Waiting...</div>
+              </div>
+            </div>
+
+            <!-- Step 2: Deep Product ID -->
+            <div class="chain-step" id="chain-step-2">
+              <div class="chain-step-header" onclick="toggleChainStep(2)">
+                <span class="chain-step-num">02</span>
+                <span class="chain-step-title">Deep Product Identification</span>
+                <span class="chain-step-status" id="chain-status-2">⏳</span>
+              </div>
+              <div class="chain-step-body" id="chain-body-2">
+                <div id="chain-content-2" style="color:var(--dim);font-size:0.8rem;">Waiting...</div>
+              </div>
+            </div>
+
+            <!-- Step 3: 3D Model Refinement -->
+            <div class="chain-step" id="chain-step-3">
+              <div class="chain-step-header" onclick="toggleChainStep(3)">
+                <span class="chain-step-num">03</span>
+                <span class="chain-step-title">3D Model Reference + Instructions</span>
+                <span class="chain-step-status" id="chain-status-3">⏳</span>
+              </div>
+              <div class="chain-step-body" id="chain-body-3">
+                <div id="chain-content-3" style="color:var(--dim);font-size:0.8rem;">Waiting...</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-title">System Log</div>
+          <div class="status-log" id="status-log">
+            <div class="log-line"><span class="log-time">00:00</span><span class="log-msg">ForgeAI initialized. Ready to scan.</span></div>
           </div>
         </div>
       </div>
+
+      <!-- RIGHT COLUMN -->
       <div>
         <div class="panel">
           <div class="panel-title">3D Model Viewer</div>
@@ -93,11 +462,14 @@
           <div class="model-info" id="model-info">
             <div class="info-grid">
               <div class="info-item"><label>Object Type</label><span id="info-type">—</span></div>
+              <div class="info-item"><label>Brand / Model</label><span id="info-brand">—</span></div>
               <div class="info-item"><label>Material</label><span id="info-material">—</span></div>
               <div class="info-item"><label>Primary Color</label><span id="info-color">—</span></div>
               <div class="info-item"><label>Shape Class</label><span id="info-shape">—</span></div>
+              <div class="info-item"><label>Confidence</label><span id="info-confidence">—</span></div>
             </div>
           </div>
+
           <div class="panel-title" style="margin-top:20px">Voice Commands</div>
           <div class="btn-row">
             <button class="btn btn-voice" id="btn-voice" onclick="toggleVoice()">🎙️ Hold to Speak</button>
@@ -109,13 +481,7 @@
           <div class="voice-command-display" id="voice-display">
             <span style="color:var(--dim)">Say: "make it bigger", "rotate left", "change to metal", "red"...</span>
           </div>
-          <button class="save-btn" id="save-btn" onclick="saveModel()" disabled>💾 Save to Library (Snowflake)</button>
-        </div>
-        <div class="panel" style="margin-top:16px">
-          <div class="panel-title">System Log</div>
-          <div class="status-log" id="status-log">
-            <div class="log-line"><span class="log-time">00:00</span><span class="log-msg">ForgeAI initialized. Ready to scan.</span></div>
-          </div>
+          <button class="save-btn" id="save-btn" onclick="saveModel()" disabled>💾 Save to Library</button>
         </div>
       </div>
     </div>
@@ -126,7 +492,7 @@
     <div class="library-header">
       <div>
         <div class="section-title">Your 3D Library</div>
-        <div class="section-sub">All models stored in Snowflake — searchable and exportable</div>
+        <div class="section-sub">All your models — searchable and exportable</div>
       </div>
       <button class="cta-primary" onclick="showPage('scan')">+ New Scan</button>
     </div>
@@ -134,11 +500,11 @@
   </div>
 </div>
 
-
 <!-- LOADING -->
 <div class="loading-overlay" id="loading">
   <div class="loader-ring"></div>
   <div class="loader-text" id="loading-text">ANALYZING FRAMES...</div>
+  <div class="loader-sub" id="loading-sub"></div>
 </div>
 
 <!-- TOAST -->
@@ -149,12 +515,11 @@
 // CONFIG
 // ============================================================
 let CONFIG = {
-  geminiKey:      'AIzaSyDCemc-QMtbq1lxHjLPfwCI0rH5i3gRIcI',
-  featherlessKey: 'rc_d16336d22e5dfbd518ec94e0c4db4f31858afc94f6605cb6c7f6c310e372a41b',
+  geminiKey:      'AIzaSyAt51hT_m7wktLFvN5pZ8idF2ewRIikqO0',
   elevenLabsKey:  '',
-  model:          localStorage.getItem('fg_model')       || 'deepseek-ai/DeepSeek-V3-0324',
 };
 
+let DEBUG = true;
 let BACKEND_URL = 'http://localhost:8000';
 
 // ============================================================
@@ -163,9 +528,26 @@ let BACKEND_URL = 'http://localhost:8000';
 let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
-let user     = JSON.parse(localStorage.getItem('fg_user')    || 'null');
-let library  = JSON.parse(localStorage.getItem('fg_library') || '[]');
+let user    = JSON.parse(localStorage.getItem('fg_user')    || 'null');
+let library = JSON.parse(localStorage.getItem('fg_library') || '[]');
 const startTime = Date.now();
+
+// Chain state
+let chainResults = { step1: null, step2: null, step3: null };
+
+// ============================================================
+// STARS
+// ============================================================
+(function createStars() {
+  const container = document.getElementById('stars');
+  for (let i = 0; i < 120; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2 + 0.5;
+    s.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;width:${size}px;height:${size}px;--d:${2+Math.random()*4}s;--o:${0.3+Math.random()*0.5};animation-delay:${Math.random()*5}s`;
+    container.appendChild(s);
+  }
+})();
 
 // ============================================================
 // NAVIGATION
@@ -179,8 +561,17 @@ function showPage(id) {
   if (id === 'library') renderLibrary();
 }
 
+async function testAPI() {
+  try {
+    await testApiKey();
+  } catch(e) {
+    hideLoading();
+    toast('API key error: ' + e.message, 'error');
+    return;
+  }
+}
 // ============================================================
-// AUTH (simulated — swap with real Auth0 SDK for prize)
+// AUTH
 // ============================================================
 function toggleAuth() {
   if (user) {
@@ -192,25 +583,44 @@ function toggleAuth() {
     localStorage.setItem('fg_user', JSON.stringify(user));
     document.getElementById('auth-btn').textContent = '👤 ' + user.name;
     toast('Welcome back, ' + user.name + '!', 'success');
-    log('Auth0 authentication successful', 'success');
+    logHTML('Auth successful', 'success');
   }
 }
 
 // ============================================================
 // CAMERA
 // ============================================================
+async function toggleCamera() {
+  if (stream) { await closeCamera(); } else { await startCamera(); }
+}
+
 async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
     document.getElementById('webcam').srcObject = stream;
-    document.getElementById('btn-start-cam').style.display = 'none';
     document.getElementById('btn-capture').disabled = false;
     document.getElementById('scan-line').classList.add('active');
-    log('Camera initialized successfully', 'success');
+    document.getElementById('btn-start-cam').textContent = 'Stop Camera';
+    logHTML('Camera initialized successfully', 'success');
     toast('Camera ready! Capture 5 angles of your object.', 'success');
   } catch (e) {
-    log('Camera access denied: ' + e.message, 'error');
+    logHTML('Camera access denied: ' + e.message, 'error');
     toast('Camera access denied.', 'error');
+  }
+}
+
+async function closeCamera() {
+  try {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    document.getElementById('webcam').srcObject = null;
+    document.getElementById('btn-start-cam').textContent = 'Start Camera';
+    document.getElementById('btn-capture').disabled = true;
+    document.getElementById('scan-line').classList.remove('active');
+    logHTML('Camera closed', 'success');
+    toast('Camera closed.', 'success');
+  } catch (e) {
+    logHTML('Camera error: ' + e.message, 'error');
   }
 }
 
@@ -240,233 +650,542 @@ function captureFrame() {
   container.style.boxShadow = '0 0 30px rgba(0,255,204,0.8)';
   setTimeout(() => { container.style.boxShadow = ''; }, 200);
 
-  log('Angle ' + captures.length + '/5 captured (' + Math.round(dataUrl.length / 1024) + 'KB)', 'success');
+  logHTML('Angle ' + captures.length + '/5 captured', 'success');
+  updateCaptureUI();
 
   if (captures.length === 5) {
     document.getElementById('btn-generate').disabled = false;
     document.getElementById('btn-capture').disabled  = true;
     toast('5 angles captured! Ready to generate.', 'success');
-    log('All angles captured. Click Generate to proceed.', 'info');
+    logHTML('All angles captured. Click Generate to proceed.', 'info');
   }
 }
 
 function resetScan() {
-  captures = []; currentModel = null;
+  captures = []; currentModel = null; chainResults = { step1: null, step2: null, step3: null };
+  // Reset camera thumbs
   for (let i = 0; i < 5; i++) {
     const t = document.getElementById('thumb-' + i);
-    t.innerHTML = ''; t.className = 'thumb empty'; t.setAttribute('data-n', i + 1);
+    if (t) { t.innerHTML = ''; t.className = 'thumb empty'; t.setAttribute('data-n', i + 1); }
   }
+  // Reset upload/video thumb rows
+  updateThumbStrip();
   document.getElementById('capture-progress').style.width = '0%';
-  document.getElementById('capture-count').textContent    = '0 / 5 CAPTURED';
-  document.getElementById('btn-generate').disabled = true;
-  document.getElementById('btn-capture').disabled  = !stream;
+  const countEl = document.getElementById('capture-count');
+  if (countEl) countEl.textContent = '0 / 5 CAPTURED';
+  clearFullVideo();
+  updateGenerateButtonState();
+  const btnCap = document.getElementById('btn-capture');
+  if (btnCap) btnCap.disabled = !stream;
   document.getElementById('save-btn').disabled     = true;
   document.getElementById('model-info').classList.remove('visible');
   document.getElementById('viewer-placeholder').style.display = 'flex';
   document.getElementById('voice-display').innerHTML = '<span style="color:var(--dim)">Say: "make it bigger", "rotate left", "change to metal"...</span>';
+  document.getElementById('ai-chain-panel').style.display = 'none';
   if (threeObject && threeScene) { threeScene.remove(threeObject); threeObject = null; }
-  log('Scan reset. Ready for new object.');
+  // Reset video state
+  videoElement = null;
+  const vidWrap = document.getElementById('video-scrubber-wrap');
+  if (vidWrap) vidWrap.classList.remove('active');
+  const vDrop = document.getElementById('video-drop-area');
+  if (vDrop) vDrop.style.display = '';
+  const vidPrev = document.getElementById('video-preview');
+  if (vidPrev) { vidPrev.src = ''; }
+  // Reset photo input
+  const photoInput = document.getElementById('photo-file-input');
+  if (photoInput) photoInput.value = '';
+  // Reset chain steps
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById('chain-step-' + i).className = 'chain-step';
+    document.getElementById('chain-status-' + i).textContent = '⏳';
+    document.getElementById('chain-content-' + i).innerHTML = '<span style="color:var(--dim);font-size:0.8rem">Waiting...</span>';
+  }
+  logHTML('Scan reset. Ready for new object.');
+}
+
+function toggleChainStep(n) {
+  const body = document.getElementById('chain-body-' + n);
+  body.style.display = body.style.display === 'none' ? 'block' : 'none';
 }
 
 // ============================================================
-// GENERATE — Featherless is OPTIONAL
+// GEMINI MULTI-STEP CHAIN
 // ============================================================
-async function generateModel() {
-  if (captures.length < 5) return toast('Capture 5 angles first.', 'error');
-  if (!CONFIG.geminiKey)   return toast('Add your Gemini API key in Config first.', 'info');
 
-  showLoading('Sending frames to Gemini Vision...');
-  log('Sending 5 frames to Gemini Vision API...');
+// Single model — no fallback loop (fallbacks waste quota on same key)
+// Change this if you upgrade your API key tier
+const GEMINI_MODELS = [
+  'gemini-2.5-flash-lite',
+];
+
+// ---- Resize a base64 image to max 512px wide, quality 0.6 to keep payload small ----
+async function compressImage(dataUrl, maxSize = 512, quality = 0.60) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback: use original
+    img.src = dataUrl;
+  });
+}
+
+// ---- Robustly extract JSON from a model response ----
+function extractJSON(text) {
+  // Strip markdown code fences and leading/trailing whitespace
+  let clean = text
+    .replace(/^```json\s*/i, '').replace(/```\s*$/i, '')
+    .replace(/^```\s*/,      '').replace(/```\s*$/,   '')
+    .trim();
+
+  // Find outermost { ... } using depth counting
+  const start = clean.indexOf('{');
+  if (start === -1) {
+    logHTML('extractJSON: no { found in: ' + clean.slice(0, 120), 'error');
+    return null;
+  }
+  let depth = 0, end = -1;
+  for (let i = start; i < clean.length; i++) {
+    if (clean[i] === '{') depth++;
+    else if (clean[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (end === -1) {
+    logHTML('extractJSON: unmatched braces in response', 'error');
+    return null;
+  }
+  const jsonStr = clean.slice(start, end + 1);
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    logHTML('extractJSON parse error: ' + e.message, 'error');
+    logHTML('Raw JSON string (first 300 chars): ' + jsonStr.slice(0, 300), 'error');
+    return null;
+  }
+}
+
+async function callGemini(parts, jsonMode = true) {
+  let lastError = '';
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      logHTML(`  → Trying ${modelName}...`);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${CONFIG.geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // NOTE: Do NOT add 'x-goog-api-key' header — causes CORS preflight failure in browsers
+          body: JSON.stringify({ contents: [{ parts }] })
+        }
+      );
+
+      // Always read body for debug info
+      let data;
+      try { data = await res.json(); } catch(e) { lastError = modelName + ' non-JSON response'; continue; }
+
+      if (!res.ok) {
+        const errMsg = data?.error?.message || data?.error?.status || res.status;
+        lastError = `${modelName} ${res.status}: ${errMsg}`;
+        logHTML(`  ✗ ${modelName} failed: ${errMsg}`, 'error');
+        // 400 = bad request (wrong model/wrong args), 404 = model not found — skip
+        // 429 = rate limit — skip
+        // 403 = API key issue — stop trying
+        if (res.status === 403) throw new Error('API key error: ' + errMsg);
+        if (res.status === 429) throw new Error('Rate limit hit (429): ' + errMsg + ' — wait 60s and try again.');
+        continue;
+      }
+
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        // Check for safety block
+        const blockReason = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason;
+        lastError = `${modelName} empty/blocked: ${blockReason || 'unknown'}`;
+        logHTML(`  ✗ ${modelName} blocked: ${blockReason}`, 'error');
+        logHTML(`  Full response: ` + JSON.stringify(data).slice(0, 300), 'error');
+        continue;
+      }
+      // Log first 200 chars of raw response so we can debug JSON issues
+      logHTML(`  Raw response (${text.length} chars): ${text.slice(0, 200)}`, 'info');
+
+      if (jsonMode) {
+        const json = extractJSON(text);
+        if (!json) {
+          // Don't retry — retrying won't fix a JSON structure issue, just wastes quota
+          // The raw text is already logged by extractJSON above
+          throw new Error(`${modelName} returned non-JSON response — check System Log for raw output`);
+        }
+        logHTML(`  ✓ ${modelName} success`, 'success');
+        return { text, json, model: modelName };
+      }
+      logHTML(`  ✓ ${modelName} success`, 'success');
+      return { text, json: null, model: modelName };
+    } catch (e) {
+      lastError = e.message;
+      logHTML(`  ✗ ${e.message}`, 'error');
+      // Re-throw fatal errors immediately — do NOT continue to next model
+      if (e.message.includes('API key') || e.message.includes('Rate limit') || e.message.includes('429')) throw e;
+    }
+  }
+  throw new Error('All Gemini models failed. Last: ' + lastError);
+}
+
+// Cached image parts — compressed ONCE per generation run, reused across all 3 steps
+let _cachedImageParts = null;
+
+async function buildImagePartsCache() {
+  if (inputMode === 'fullvideo' && fullVideoFile) {
+    const file = fullVideoFile;
+    const mime = file.type || 'video/mp4';
+    const base64 = await readFileAsBase64(file);
+    _cachedImageParts = [{ inline_data: { mime_type: mime, data: base64 } }];
+    logHTML(`Full video cached for chain: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB).`, 'info');
+    return;
+  }
+  const indices = [0, 4].filter(i => captures[i]); // front + back only (2 images)
+  const compressed = await Promise.all(indices.map(i => compressImage(captures[i], 256, 0.4)));
+  _cachedImageParts = compressed.map(dataUrl => ({
+    inline_data: { mime_type: 'image/jpeg', data: dataUrl.split(',')[1] }
+  }));
+  logHTML(`Images compressed: ${_cachedImageParts.length} frame(s) cached for chain.`, 'info');
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const base64 = dataUrl.indexOf(',') >= 0 ? dataUrl.split(',')[1] : dataUrl;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function getImageParts() {
+  // Synchronous — always returns the pre-built cache (must call buildImagePartsCache() first)
+  return _cachedImageParts || [];
+}
+
+// ============================================================
+// SINGLE-CALL CHAIN — all 3 analysis steps in ONE Gemini request
+// Saves 2 out of 3 API calls per run (critical on free tier: 20 RPD)
+// ============================================================
+async function testApiKey() {
+  // Cheap text-only ping to verify the key works before sending images
+  log('Testing API key (text-only ping)...', 'info');
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${CONFIG.geminiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with only this exact JSON: {"ok":true}' }] }] })
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data?.error?.message || res.status;
+    log('API key test FAILED: ' + msg, 'error');
+    log('HTTP status: ' + res.status + ' | Full error: ' + JSON.stringify(data?.error || data).slice(0, 300), 'error');
+    throw new Error('API key test failed (' + res.status + '): ' + msg);
+  }
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  log('API key test passed ✓ response: ' + text.slice(0, 80), 'success');
+}
+
+async function runSingleCallChain() {
+  // Mark all 3 steps as active/pending
+  setChainStepActive(1); setChainStepActive(2); setChainStepActive(3);
+  logHTML('Single API call — all 3 analysis steps combined...', 'info');
+
+  const imageParts = getImageParts();
+  const isVideo = imageParts.length === 1 && imageParts[0].inline_data && (imageParts[0].inline_data.mime_type || '').startsWith('video/');
+  const intro = isVideo ? 'Analyze this video of an object (watch the whole video). ' : 'Analyze this object. ';
+  const prompt = {
+    text: intro + `Reply with ONLY a JSON object, no markdown, no text outside the JSON.
+Keys required: detection (object_name, confidence_score 0-1, confidence_reason, lighting_quality, image_clarity), identification (object_type, brand, item_model, material, primary_color, estimated_height_cm, estimated_width_cm, estimated_depth_cm, shape_class, surface_finish, has_handle, has_lid, notable_features, search_query, confidence_score, confidence_breakdown with brand/model/material/dimensions_confidence), model_ref (model_url from sketchfab/free3d/thingiverse, model_source, model_match_quality, three_js_geometry, geometry_args array, color_hex, roughness, metalness, emissive_hex, has_secondary_geometry, improvement_instructions array of 5 strings).`
+  };
+
+  const result = await callGemini([prompt, ...imageParts]);
+  const raw = result.json;
+
+  // Fan out to the 3 chain result slots
+  const s1 = raw.detection       || {};
+  const s2 = raw.identification  || {};
+  const s3 = raw.model_ref       || {};
+  chainResults.step1 = s1;
+  chainResults.step2 = s2;
+  chainResults.step3 = s3;
+
+  // ── Render Step 1 ──
+  const conf1Pct = Math.round((s1.confidence_score || 0) * 100);
+  const conf1Class = conf1Pct >= 75 ? 'high' : conf1Pct >= 50 ? 'medium' : 'low';
+  document.getElementById('chain-content-1').innerHTML = `
+    <div style="font-size:0.85rem;color:var(--bright);font-weight:600;margin-bottom:6px">${s1.object_name || 'Unknown'}</div>
+    <div class="confidence-label"><span>Confidence</span><span style="color:var(--${conf1Class === 'high' ? 'green' : conf1Class === 'medium' ? 'gold' : 'red'})">${conf1Pct}%</span></div>
+    <div class="confidence-bar"><div class="confidence-fill ${conf1Class}" id="conf-fill-1"></div></div>
+    <div style="font-size:0.75rem;color:var(--dim);margin-top:4px">${s1.confidence_reason || ''}</div>
+    <div class="analysis-grid" style="margin-top:8px">
+      <div class="analysis-item"><label>Image Clarity</label><span>${s1.image_clarity || '—'}</span></div>
+      <div class="analysis-item"><label>Lighting</label><span>${s1.lighting_quality || '—'}</span></div>
+    </div>
+  `;
+  setTimeout(() => { const el = document.getElementById('conf-fill-1'); if (el) el.style.width = conf1Pct + '%'; }, 100);
+  setChainStepDone(1, s1.can_identify ? '✅' : '⚠️');
+
+  // ── Render Step 2 ──
+  const conf2Pct = Math.round((s2.confidence_score || 0) * 100);
+  const conf2Class = conf2Pct >= 75 ? 'high' : conf2Pct >= 50 ? 'medium' : 'low';
+  const breakdownHTML = Object.entries(s2.confidence_breakdown || {}).map(([k, v]) => {
+    const label = k.replace('_confidence', '').replace(/_/g, ' ');
+    const pct = Math.round(v * 100);
+    return `<div class="analysis-item"><label>${label}</label><span style="color:var(--${pct >= 70 ? 'green' : pct >= 40 ? 'gold' : 'red'})">${pct}%</span></div>`;
+  }).join('');
+  document.getElementById('chain-content-2').innerHTML = `
+    <div style="font-size:0.85rem;color:var(--bright);font-weight:600;margin-bottom:6px">${s2.brand && s2.brand !== 'Unknown' ? s2.brand + ' — ' : ''}${s2.item_model && s2.item_model !== 'Unknown' ? s2.item_model : s2.object_type || '—'}</div>
+    <div class="confidence-label"><span>Overall Confidence</span><span style="color:var(--${conf2Class === 'high' ? 'green' : conf2Class === 'medium' ? 'gold' : 'red'})">${conf2Pct}%</span></div>
+    <div class="confidence-bar"><div class="confidence-fill ${conf2Class}" id="conf-fill-2"></div></div>
+    <div class="analysis-grid" style="margin-top:8px">
+      <div class="analysis-item"><label>Material</label><span>${s2.material || '—'}</span></div>
+      <div class="analysis-item"><label>Color</label><span>${s2.primary_color || '—'}</span></div>
+      <div class="analysis-item"><label>Est. Size (H×W×D)</label><span>${s2.estimated_height_cm || '?'}×${s2.estimated_width_cm || '?'}×${s2.estimated_depth_cm || '?'} cm</span></div>
+      <div class="analysis-item"><label>Surface</label><span>${s2.surface_finish || '—'}</span></div>
+      ${breakdownHTML}
+    </div>
+    ${s2.search_query ? `<div class="search-result" style="margin-top:8px"><label style="font-size:0.6rem;color:var(--dim);display:block;margin-bottom:4px">RECOMMENDED SEARCH QUERY</label><span style="color:var(--teal);font-size:0.8rem">"${s2.search_query}"</span></div>` : ''}
+  `;
+  setTimeout(() => { const el = document.getElementById('conf-fill-2'); if (el) el.style.width = conf2Pct + '%'; }, 100);
+  setChainStepDone(2, '✅');
+
+  // ── Render Step 3 ──
+  const instructions = s3.improvement_instructions || [];
+  document.getElementById('chain-content-3').innerHTML = `
+    <div class="search-result">
+      <label style="font-size:0.6rem;color:var(--dim);display:block;margin-bottom:4px">BEST 3D MODEL REFERENCE</label>
+      <a href="${s3.model_url || '#'}" target="_blank" rel="noopener">${s3.model_url || 'Not found'}</a>
+      <p>Source: ${s3.model_source || '—'} · Match quality: <span style="color:var(--${s3.model_match_quality === 'exact' ? 'green' : s3.model_match_quality === 'close' ? 'teal' : 'gold'})">${s3.model_match_quality || '—'}</span></p>
+    </div>
+    <div style="margin-top:10px;font-family:'Orbitron',monospace;font-size:0.55rem;color:var(--dim);letter-spacing:1px">5 IMPROVEMENT INSTRUCTIONS</div>
+    <ul class="instructions-list">
+      ${instructions.map((inst, i) => `<li><span class="inst-num">${String(i+1).padStart(2,'0')}</span><span>${inst}</span></li>`).join('')}
+    </ul>
+  `;
+  setChainStepDone(3, '✅');
+
+  logHTML(`Analysis complete: "${s1.object_name}" — 1 API call used.`, 'success');
+  return { step1: s1, step2: s2, step3: s3 };
+}
+
+function setChainStepActive(n) {
+  const el = document.getElementById('chain-step-' + n);
+  el.className = 'chain-step active';
+  document.getElementById('chain-status-' + n).innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+  document.getElementById('chain-content-' + n).innerHTML = '<span style="color:var(--dim);font-size:0.8rem">Processing...</span>';
+}
+
+function setChainStepDone(n, icon) {
+  const el = document.getElementById('chain-step-' + n);
+  el.className = 'chain-step done';
+  document.getElementById('chain-status-' + n).textContent = icon;
+}
+
+function setChainStepError(n, msg) {
+  const el = document.getElementById('chain-step-' + n);
+  el.className = 'chain-step error-state';
+  document.getElementById('chain-status-' + n).textContent = '❌';
+  if (msg) {
+    document.getElementById('chain-content-' + n).innerHTML =
+      '<div style="color:var(--red);font-size:0.75rem;word-break:break-all;line-height:1.5">Error: ' + msg + '</div>';
+  }
+}
+
+// ============================================================
+// GENERATE — 3-step chain
+// ============================================================
+let _lastGenerateTime = 0;
+
+async function generateModel() {
+  const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
+  if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
+  if (!CONFIG.geminiKey)   return toast('Add your Gemini API key in the CONFIG to get started.', 'info');
+
+  // Free tier: 10 RPM limit. Enforce a 12-second minimum between requests.
+  const now = Date.now();
+  const elapsed = (now - _lastGenerateTime) / 1000;
+  if (_lastGenerateTime && elapsed < 12) {
+    const wait = Math.ceil(12 - elapsed);
+    toast(`Rate limit cooldown — please wait ${wait}s before scanning again.`, 'info');
+    log(`Cooldown: wait ${wait}s (free tier RPM limit)`, 'info');
+    return;
+  }
+  _lastGenerateTime = now;
+
+  document.getElementById('ai-chain-panel').style.display = 'block';
+  document.getElementById('ai-chain-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  showLoading('Starting AI Analysis Chain...');
+  log('Starting 3-step Gemini analysis chain...', 'info');
+
+  // ── Test key first (cheap text-only call) then compress images ──
+  try {
+    await testApiKey();
+  } catch(e) {
+    hideLoading();
+    toast('API key error: ' + e.message, 'error');
+    return;
+  }
+
+  _cachedImageParts = null;
+  await buildImagePartsCache();
+
+  let step1Data = null, step2Data = null, step3Data = null;
 
   try {
-    // STEP 1: Gemini Vision (required)
-    const geminiResult = await analyzeWithGemini(captures);
-    log('Gemini analysis complete: ' + geminiResult.object_type, 'success');
-
-    // STEP 2: 3D params — Featherless if key exists, local fallback otherwise
-    let modelParams;
-    if (CONFIG.featherlessKey) {
-      updateLoading('Generating 3D parameters with DeepSeek...');
-      try {
-        modelParams = await generateWithFeatherless(geminiResult);
-        log('3D parameters generated via Featherless', 'success');
-      } catch (e) {
-        log('Featherless failed, using smart local fallback', 'info');
-        modelParams = buildParamsFromGemini(geminiResult);
-      }
-    } else {
-      log('No Featherless key — using smart local fallback', 'info');
-      modelParams = buildParamsFromGemini(geminiResult);
+    // SINGLE CALL — all 3 analysis steps in one Gemini request
+    updateLoading(inputMode === 'fullvideo' ? 'Sending full video to Gemini...' : 'Analyzing object... (1 API call)');
+    try {
+      const chainData = await runSingleCallChain();
+      step1Data = chainData.step1;
+      step2Data = chainData.step2;
+      step3Data = chainData.step3;
+    } catch (e) {
+      log('Analysis failed: ' + e.message, 'error');
+      setChainStepError(1, e.message);
+      setChainStepError(2, e.message);
+      setChainStepError(3, e.message);
+      throw e; // propagate to outer catch
     }
 
-    // STEP 3: Render
-    updateLoading('Rendering 3D model...');
-    currentModel = { gemini: geminiResult, params: modelParams, id: 'model_' + Date.now(), name: geminiResult.object_type };
-    renderThreeModel(modelParams, geminiResult);
+    // BUILD MODEL PARAMS
+    updateLoading('Rendering 3D Model...');
+    const modelParams = buildParamsFromChain(step2Data, step3Data);
 
-    document.getElementById('info-type').textContent     = geminiResult.object_type || 'Unknown';
-    document.getElementById('info-material').textContent = geminiResult.material    || 'Unknown';
-    document.getElementById('info-color').textContent    = geminiResult.primary_color || 'Unknown';
-    document.getElementById('info-shape').textContent    = modelParams.shape        || 'Unknown';
+    currentModel = {
+      id: 'model_' + Date.now(),
+      name: step2Data?.object_type || step1Data?.object_name || 'Unknown Object',
+      gemini: step2Data || step1Data,
+      params: modelParams,
+      chain: { step1: step1Data, step2: step2Data, step3: step3Data }
+    };
+
+    // Render
+    renderThreeModel(modelParams, step2Data || step1Data);
+
+    // Update info panel
+    const name = step2Data?.brand && step2Data.brand !== 'Unknown' ? `${step2Data.brand} ${step2Data.item_model !== 'Unknown' ? step2Data.item_model : ''}`.trim() : (step1Data?.object_name || 'Unknown');
+    document.getElementById('info-type').textContent     = step2Data?.object_type || step1Data?.object_name || '—';
+    document.getElementById('info-brand').textContent    = name;
+    document.getElementById('info-material').textContent = step2Data?.material || '—';
+    document.getElementById('info-color').textContent    = step2Data?.primary_color || '—';
+    document.getElementById('info-shape').textContent    = step2Data?.shape_class || modelParams.shape || '—';
+    const confPct = Math.round(((step2Data?.confidence_score || step1Data?.confidence_score || 0)) * 100);
+    document.getElementById('info-confidence').textContent = confPct + '%';
+    document.getElementById('info-confidence').style.color = confPct >= 75 ? 'var(--green)' : confPct >= 50 ? 'var(--gold)' : 'var(--red)';
     document.getElementById('model-info').classList.add('visible');
     document.getElementById('viewer-placeholder').style.display = 'none';
     document.getElementById('save-btn').disabled = false;
 
     hideLoading();
-    toast('3D model generated! Use voice commands to modify it.', 'success');
-    log('Model rendered successfully.', 'success');
+    toast('3D model generated from AI chain! Use voice to modify it.', 'success');
+    log('Model rendered successfully from 3-step chain.', 'success');
+
   } catch (e) {
     hideLoading();
-    log('Generation failed: ' + e.message, 'error');
+    log('Chain failed: ' + e.message, 'error');
     toast('Generation failed: ' + e.message, 'error');
   }
 }
 
 // ============================================================
-// GEMINI VISION — tries multiple model names automatically
+// BUILD PARAMS FROM CHAIN RESULTS
 // ============================================================
-async function analyzeWithGemini(frames) {
-  const parts = [{ text: `Analyze these ${frames.length} photos of the same object taken from different angles. Return ONLY a JSON object with these exact fields:
-{
-  "object_type": "specific name of the object",
-  "material": "primary material (plastic/metal/glass/wood/ceramic/fabric)",
-  "primary_color": "main color",
-  "secondary_color": "secondary color if any",
-  "shape_class": "geometric classification (cylindrical/spherical/cuboid/conical/irregular)",
-  "height_ratio": 2.0,
-  "width_ratio": 1,
-  "depth_ratio": 1.0,
-  "surface": "smooth/rough/textured/glossy/matte",
-  "has_handle": false,
-  "has_lid": false,
-  "notable_features": "brief description"
-}` }];
+function buildParamsFromChain(step2, step3) {
+  // Prefer step3 Three.js params if available, fall back to step2 analysis
+  let geometry_type, geometry_args, color_hex, roughness, metalness, emissive_hex;
 
-  for (let i = 0; i < frames.length; i++) {
-    parts.push({ inline_data: { mime_type: 'image/jpeg', data: frames[i].split(',')[1] } });
-  }
+  if (step3?.three_js_geometry && step3?.geometry_args?.length) {
+    geometry_type = step3.three_js_geometry;
+    geometry_args = step3.geometry_args;
+    color_hex     = step3.color_hex || colorFromName(step2?.primary_color || 'blue');
+    roughness     = step3.roughness ?? 0.4;
+    metalness     = step3.metalness ?? 0.1;
+    emissive_hex  = step3.emissive_hex || '#001122';
+  } else {
+    // Fallback: derive from step2
+    const g = step2 || {};
+    const mat = (g.material || '').toLowerCase();
+    const surface = (g.surface_finish || '').toLowerCase();
+    const shape = (g.shape_class || '').toLowerCase();
 
-  // Only send 2 frames (front + side) to reduce token usage and quota hit
-  const reducedParts = [parts[0], parts[1], parts[3]]; // prompt + frame 1 + frame 3
+    color_hex = colorFromName(g.primary_color || 'blue');
+    emissive_hex = '#001122';
+    roughness = 0.5; metalness = 0.1;
 
-  const MODELS = [
-    'gemini-2.0-flash-lite',
-    'gemini-2.0-flash-001',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-  ];
-  let lastError = '';
+    if (mat.includes('metal') || mat.includes('steel') || mat.includes('alumin')) { roughness = 0.15; metalness = 0.9; }
+    else if (mat.includes('glass')) { roughness = 0.05; metalness = 0.0; }
+    else if (mat.includes('wood'))  { roughness = 0.85; metalness = 0.0; }
+    else if (mat.includes('ceramic')) { roughness = 0.3; metalness = 0.0; }
+    else if (surface.includes('gloss')) { roughness = 0.1; }
+    else if (surface.includes('matte')) { roughness = 0.9; }
 
-  for (const modelName of MODELS) {
-    log('Trying Gemini model: ' + modelName + '...');
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${CONFIG.geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': CONFIG.geminiKey },
-          body: JSON.stringify({ contents: [{ parts: reducedParts }] })
-        }
-      );
+    const h = (g.estimated_height_cm || 20) / 10;
+    const w = (g.estimated_width_cm || 8) / 10;
+    const d = (g.estimated_depth_cm || 8) / 10;
 
-      if (res.status === 404) { lastError = modelName + ' not found'; continue; }
-      if (res.status === 429) { lastError = modelName + ' rate limited'; log(modelName + ' rate limited, trying next...', 'info'); continue; }
-      if (res.status === 400) {
-        // 400 might mean model doesn't support vision — try with text only as fallback
-        lastError = modelName + ' bad request'; continue;
-      }
-      if (!res.ok) { lastError = modelName + ' error ' + res.status; continue; }
+    // Normalize to reasonable Three.js scale (max 2.0 in any dimension)
+    const maxDim = Math.max(h, w, d, 0.5);
+    const scale = maxDim > 2.0 ? 2.0 / maxDim : 1.0;
+    const sh = h * scale, sw = w * scale, sd = d * scale;
+    const r = Math.max(sw, sd) / 2;
 
-      const data  = await res.json();
-      const text  = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) { lastError = modelName + ' empty response'; continue; }
-      const match = text.match(/\{[\s\S]*\}/);
-      if (!match) { lastError = 'Could not parse JSON from ' + modelName; continue; }
-      log('Gemini success with model: ' + modelName, 'success');
-      return JSON.parse(match[0]);
-    } catch (e) {
-      lastError = e.message;
+    if (shape.includes('cylinder') || shape.includes('cylindric')) {
+      geometry_type = 'CylinderGeometry';
+      geometry_args = [r * 0.85, r, sh, 32];
+    } else if (shape.includes('sphere') || shape.includes('ball')) {
+      geometry_type = 'SphereGeometry';
+      geometry_args = [r, 32, 32];
+    } else if (shape.includes('cone')) {
+      geometry_type = 'ConeGeometry';
+      geometry_args = [r, sh, 32];
+    } else {
+      geometry_type = 'BoxGeometry';
+      geometry_args = [sw, sh, sd];
     }
   }
-  throw new Error('All Gemini models failed: ' + lastError);
+
+  let shapeName = 'box';
+  if (geometry_type?.includes('Cylinder')) shapeName = 'cylinder';
+  else if (geometry_type?.includes('Sphere')) shapeName = 'sphere';
+  else if (geometry_type?.includes('Cone')) shapeName = 'cone';
+  else if (geometry_type?.includes('Torus')) shapeName = 'torus';
+
+  return {
+    shape: shapeName,
+    primary_geometry: { type: geometry_type, args: geometry_args },
+    secondary_geometry: step3?.has_secondary_geometry ? buildSecondaryGeometry(step2, step3) : null,
+    color_hex,
+    emissive_hex,
+    roughness,
+    metalness,
+    scale: [1, 1, 1],
+    wireframe_accent: metalness < 0.5
+  };
 }
 
-// ============================================================
-// FEATHERLESS — only called when key exists
-// ============================================================
-async function generateWithFeatherless(geminiData) {
-  const prompt = `You are a 3D modeling system. Based on this object analysis, return ONLY a JSON object with Three.js rendering parameters.
-
-Object: ${JSON.stringify(geminiData)}
-
-Return exactly this JSON structure:
-{
-  "shape": "cylinder|box|sphere|cone|torus",
-  "primary_geometry": { "type": "CylinderGeometry|BoxGeometry|SphereGeometry|ConeGeometry", "args": [array of constructor args] },
-  "secondary_geometry": null or { "type": "...", "args": [...], "position": [x,y,z] },
-  "color_hex": "#hexcolor",
-  "emissive_hex": "#001122",
-  "roughness": 0.0-1.0,
-  "metalness": 0.0-1.0,
-  "scale": [1,1,1],
-  "wireframe_accent": true
-}
-Use realistic proportions. Water bottle = CylinderGeometry args [0.3, 0.35, 2.0, 32].`;
-
-  const res = await fetch('https://api.featherless.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + CONFIG.featherlessKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: CONFIG.model, max_tokens: 600, messages: [{ role: 'user', content: prompt }] })
-  });
-  if (!res.ok) throw new Error('Featherless API error: ' + res.status);
-  const data  = await res.json();
-  const text  = data.choices[0].message.content;
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Could not parse Featherless response');
-  return JSON.parse(match[0]);
-}
-
-// ============================================================
-// SMART LOCAL FALLBACK — builds 3D params from Gemini data
-// ============================================================
-function buildParamsFromGemini(g) {
-  const shape   = (g.shape_class || '').toLowerCase();
-  const color   = colorFromName(g.primary_color || 'blue');
-  const surface = (g.surface   || '').toLowerCase();
-  const mat     = (g.material  || '').toLowerCase();
-
-  let roughness = 0.5, metalness = 0.1;
-  if (mat.includes('metal') || mat.includes('steel') || mat.includes('alumin')) { roughness = 0.15; metalness = 0.9; }
-  else if (mat.includes('glass'))   { roughness = 0.05; metalness = 0.0; }
-  else if (mat.includes('wood'))    { roughness = 0.85; metalness = 0.0; }
-  else if (mat.includes('ceramic')) { roughness = 0.3;  metalness = 0.0; }
-  else if (mat.includes('rubber'))  { roughness = 0.95; metalness = 0.0; }
-  else if (surface.includes('gloss')) { roughness = 0.1; metalness = 0.05; }
-  else if (surface.includes('matte')) { roughness = 0.9; metalness = 0.0; }
-
-  const hr = parseFloat(g.height_ratio) || 1.5;
-  const dr = parseFloat(g.depth_ratio)  || 1.0;
-
-  let primary_geometry, secondary_geometry = null, shapeName;
-
-  if (shape.includes('cylinder') || shape.includes('cylindric')) {
-    shapeName = 'cylinder';
-    const r = 0.4, h = Math.min(Math.max(r * hr, 0.3), 3.0);
-    primary_geometry = { type: 'CylinderGeometry', args: [r * 0.85, r, h, 32] };
-    if (g.has_lid) secondary_geometry = { type: 'CylinderGeometry', args: [r * 0.88, r * 0.88, 0.12, 32], position: [0, h / 2 + 0.06, 0] };
-  } else if (shape.includes('sphere') || shape.includes('ball')) {
-    shapeName = 'sphere';
-    primary_geometry = { type: 'SphereGeometry', args: [0.55, 32, 32] };
-  } else if (shape.includes('cone') || shape.includes('pyramid')) {
-    shapeName = 'cone';
-    primary_geometry = { type: 'ConeGeometry', args: [0.45, Math.min(hr * 0.6, 2.0), 32] };
-  } else {
-    shapeName = 'box';
-    primary_geometry = { type: 'BoxGeometry', args: [0.8, Math.min(Math.max(0.8 * hr, 0.2), 2.5), Math.min(0.8 * dr, 1.2)] };
+function buildSecondaryGeometry(step2, step3) {
+  // Build a lid or handle if indicated
+  if (step2?.has_lid) {
+    const args = step3?.geometry_args || [0.4, 0.4, 1.5, 32];
+    const r = args[1] || 0.4;
+    const h = args[2] || 1.5;
+    return { type: 'CylinderGeometry', args: [r * 0.9, r * 0.9, 0.12, 32], position: [0, h / 2 + 0.06, 0] };
   }
-
-  return { shape: shapeName, primary_geometry, secondary_geometry, color_hex: color, emissive_hex: '#001122', roughness, metalness, scale: [1,1,1], wireframe_accent: metalness < 0.5 };
+  return null;
 }
 
 // ============================================================
@@ -489,7 +1208,7 @@ function initThreeJS() {
   threeScene.add(new THREE.AmbientLight(0x334466, 0.5));
   const d = new THREE.DirectionalLight(0x00d4ff, 1.2); d.position.set(3, 5, 3); threeScene.add(d);
   const f = new THREE.DirectionalLight(0x00ffcc, 0.4); f.position.set(-3, -2, -3); threeScene.add(f);
-  const p = new THREE.PointLight(0xffd700, 0.6, 20);   p.position.set(0, 3, 2);   threeScene.add(p);
+  const p = new THREE.PointLight(0xffd700, 0.6, 20); p.position.set(0, 3, 2); threeScene.add(p);
   threeScene.add(new THREE.GridHelper(6, 12, 0x003344, 0x001122));
 
   let isDragging = false, prevX = 0, prevY = 0;
@@ -519,14 +1238,16 @@ function renderThreeModel(params, geminiData) {
     let geo;
     const t    = params.primary_geometry?.type || 'CylinderGeometry';
     const args = params.primary_geometry?.args || [0.4, 0.4, 1.5, 32];
+
     if      (t === 'CylinderGeometry') geo = new THREE.CylinderGeometry(...args);
     else if (t === 'BoxGeometry')      geo = new THREE.BoxGeometry(...args);
     else if (t === 'SphereGeometry')   geo = new THREE.SphereGeometry(...args);
     else if (t === 'ConeGeometry')     geo = new THREE.ConeGeometry(...args);
+    else if (t === 'TorusGeometry')    geo = new THREE.TorusGeometry(...args);
     else                               geo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
 
     const color = params.color_hex || colorFromName(geminiData?.primary_color || 'blue');
-    const mat   = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshStandardMaterial({
       color:             new THREE.Color(color),
       roughness:         params.roughness  ?? 0.4,
       metalness:         params.metalness  ?? 0.2,
@@ -557,7 +1278,10 @@ function renderThreeModel(params, geminiData) {
 
     if (params.scale) group.scale.set(...params.scale);
   } catch (e) {
-    group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0x4488cc, roughness: 0.4, metalness: 0.2 })));
+    group.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32),
+      new THREE.MeshStandardMaterial({ color: 0x4488cc, roughness: 0.4, metalness: 0.2 })
+    ));
   }
 
   threeScene.add(group);
@@ -569,7 +1293,6 @@ function renderThreeModel(params, geminiData) {
 // ============================================================
 async function toggleVoice() {
   if (!currentModel) return toast('Generate a model first!', 'error');
-
   if (!isRecording) {
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -582,7 +1305,6 @@ async function toggleVoice() {
       document.getElementById('btn-voice').classList.add('recording');
       document.getElementById('btn-voice').textContent = '🔴 Recording...';
       document.getElementById('voice-viz').style.display = 'flex';
-      log('Voice recording started...');
     } catch (e) {
       const cmd = prompt('Voice unavailable. Type a command:', 'make it bigger');
       if (cmd) applyVoiceCommand(cmd);
@@ -599,8 +1321,6 @@ async function toggleVoice() {
 
 async function processAudio(chunks) {
   const blob = new Blob(chunks, { type: 'audio/webm' });
-
-  // ElevenLabs STT (if key exists)
   if (CONFIG.elevenLabsKey) {
     try {
       const formData = new FormData();
@@ -611,18 +1331,15 @@ async function processAudio(chunks) {
       });
       if (res.ok) {
         const data = await res.json();
-        const t = data.text || '';
-        log('ElevenLabs transcribed: "' + t + '"', 'info');
-        if (t) { await applyVoiceCommand(t); return; }
+        if (data.text) { await applyVoiceCommand(data.text); return; }
       }
-    } catch (e) { log('ElevenLabs STT failed, trying browser fallback', 'info'); }
+    } catch (e) { /* fallthrough */ }
   }
 
-  // Browser speech recognition fallback
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SR) {
     const r = new SR();
-    r.onresult = async e => { const cmd = e.results[0][0].transcript; log('Browser recognized: "' + cmd + '"', 'info'); await applyVoiceCommand(cmd); };
+    r.onresult = async e => { const cmd = e.results[0][0].transcript; await applyVoiceCommand(cmd); };
     r.onerror  = () => { const cmd = prompt('Could not recognize. Type command:'); if (cmd) applyVoiceCommand(cmd); };
     r.start();
   } else {
@@ -633,35 +1350,6 @@ async function processAudio(chunks) {
 
 async function applyVoiceCommand(command) {
   document.getElementById('voice-display').innerHTML = `<span style="color:var(--gold)">🎙️ "${command}"</span> <span style="color:var(--dim)">— processing...</span>`;
-
-  // Featherless for smarter parsing (if key exists)
-  if (CONFIG.featherlessKey) {
-    try {
-      const prompt = `The user said: "${command}". Return ONLY this JSON:
-{"action":"scale|rotate|color|material|reset|none","value":1.5,"axis":"all","message":"brief confirmation"}
-Examples: "bigger"->scale 1.5 all, "rotate left"->rotate -0.5 y, "make it red"->color #cc2222 all, "metallic"->material metal all`;
-      const res = await fetch('https://api.featherless.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + CONFIG.featherlessKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: CONFIG.model, max_tokens: 150, messages: [{ role: 'user', content: prompt }] })
-      });
-      if (res.ok) {
-        const data  = await res.json();
-        const text  = data.choices[0].message.content;
-        const match = text.match(/\{[\s\S]*\}/);
-        if (match) {
-          const result = JSON.parse(match[0]);
-          applyModelTransform(result);
-          document.getElementById('voice-display').innerHTML = `<span style="color:var(--teal)">✓ "${command}"</span> — ${result.message}`;
-          log('Command applied: ' + result.message, 'success');
-          if (CONFIG.elevenLabsKey && result.message) speakFeedback(result.message);
-          return;
-        }
-      }
-    } catch (e) { /* fall through */ }
-  }
-
-  // Local keyword fallback
   applyLocalCommand(command);
 }
 
@@ -669,8 +1357,8 @@ function applyLocalCommand(command) {
   if (!threeObject) return;
   const cmd = command.toLowerCase();
   let message = '';
-  if      (cmd.includes('bigger') || cmd.includes('larger') || cmd.includes('scale up'))        { threeObject.scale.multiplyScalar(1.3); message = 'Scaled up'; }
-  else if (cmd.includes('smaller') || cmd.includes('shrink') || cmd.includes('scale down'))     { threeObject.scale.multiplyScalar(0.7); message = 'Scaled down'; }
+  if      (cmd.includes('bigger') || cmd.includes('larger'))   { threeObject.scale.multiplyScalar(1.3); message = 'Scaled up'; }
+  else if (cmd.includes('smaller') || cmd.includes('shrink'))  { threeObject.scale.multiplyScalar(0.7); message = 'Scaled down'; }
   else if (cmd.includes('rotate left'))  { threeObject.rotation.y -= 0.8; message = 'Rotated left'; }
   else if (cmd.includes('rotate right')) { threeObject.rotation.y += 0.8; message = 'Rotated right'; }
   else if (cmd.includes('metal'))  { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) { c.material.metalness = 0.9; c.material.roughness = 0.1; } }); message = 'Switched to metallic'; }
@@ -683,27 +1371,7 @@ function applyLocalCommand(command) {
   else { message = 'Try: "bigger", "smaller", "rotate left", "red", "metal", "reset"'; }
 
   document.getElementById('voice-display').innerHTML = `<span style="color:var(--teal)">✓ "${command}"</span> — ${message}`;
-  log('Local command: ' + message, 'success');
-}
-
-function applyModelTransform(r) {
-  if (!threeObject) return;
-  if      (r.action === 'scale')    { const v = r.value||1.2; if (r.axis==='all') threeObject.scale.multiplyScalar(v); else threeObject.scale[r.axis||'y'] *= v; }
-  else if (r.action === 'rotate')   { threeObject.rotation[r.axis||'y'] += (r.value||0.5); }
-  else if (r.action === 'color')    { threeObject.traverse(c => { if (c.isMesh && c.material && !c.material.wireframe) c.material.color.set(r.value); }); }
-  else if (r.action === 'material') { const m = (r.value||'').includes('metal'); threeObject.traverse(c => { if (c.isMesh && c.material) { c.material.metalness = m ? 0.85 : 0.1; c.material.roughness = m ? 0.15 : 0.7; } }); }
-  else if (r.action === 'reset')    { threeObject.scale.set(1,1,1); threeObject.rotation.set(0,0,0); }
-}
-
-async function speakFeedback(text) {
-  try {
-    const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB', {
-      method: 'POST',
-      headers: { 'xi-api-key': CONFIG.elevenLabsKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, model_id: 'eleven_monolingual_v1', voice_settings: { stability: 0.5, similarity_boost: 0.75 } })
-    });
-    if (res.ok) { const b = await res.blob(); new Audio(URL.createObjectURL(b)).play(); }
-  } catch (e) { /* TTS not critical */ }
+  logHTML('Voice: ' + message, 'success');
 }
 
 // ============================================================
@@ -712,11 +1380,11 @@ async function speakFeedback(text) {
 async function saveModel() {
   if (!currentModel) return;
   const entry = {
-    id:        currentModel.id   || 'model_' + Date.now(),
-    name:      currentModel.gemini?.object_type || 'Unknown Object',
-    material:  currentModel.gemini?.material    || 'Unknown',
+    id:        currentModel.id,
+    name:      currentModel.name,
+    material:  currentModel.gemini?.material || 'Unknown',
     color:     currentModel.gemini?.primary_color || 'Unknown',
-    shape:     currentModel.params?.shape       || 'Unknown',
+    shape:     currentModel.params?.shape || 'Unknown',
     timestamp: new Date().toISOString(),
     params:    currentModel.params,
     gemini:    currentModel.gemini,
@@ -726,19 +1394,9 @@ async function saveModel() {
   library.unshift(entry);
   localStorage.setItem('fg_library', JSON.stringify(library.slice(0, 50)));
 
-  try {
-    await fetch(BACKEND_URL + '/api/models', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: user?.id || 'anonymous', model: entry })
-    });
-    log('Model saved to Snowflake', 'success');
-  } catch (e) {
-    log('Snowflake unavailable, saved locally', 'info');
-  }
-
   document.getElementById('save-btn').disabled = true;
   toast('Model saved to your library!', 'success');
-  log('Saved: ' + entry.name, 'success');
+  logHTML('Saved: ' + entry.name, 'success');
 }
 
 // ============================================================
@@ -777,9 +1435,11 @@ function loadFromLibrary(id) {
     renderThreeModel(m.params, m.gemini);
     document.getElementById('viewer-placeholder').style.display = 'none';
     document.getElementById('info-type').textContent     = m.gemini?.object_type || m.name;
-    document.getElementById('info-material').textContent = m.gemini?.material    || '—';
+    document.getElementById('info-brand').textContent    = m.gemini?.brand || '—';
+    document.getElementById('info-material').textContent = m.gemini?.material || '—';
     document.getElementById('info-color').textContent    = m.gemini?.primary_color || '—';
-    document.getElementById('info-shape').textContent    = m.params?.shape       || '—';
+    document.getElementById('info-shape').textContent    = m.params?.shape || '—';
+    document.getElementById('info-confidence').textContent = '—';
     document.getElementById('model-info').classList.add('visible');
     toast('Loaded: ' + m.name, 'success');
   }, 100);
@@ -788,14 +1448,24 @@ function loadFromLibrary(id) {
 // ============================================================
 // UTILITIES
 // ============================================================
+
+function log(msg, type = '') {
+  if (!DEBUG) {
+    logHTML(msg, type);
+  } else {
+    logHTML(msg, type);
+    console.log(msg, type);
+  }
+}
+
 function colorFromName(name) {
   const map = { red:'#cc2222',blue:'#2266ff',green:'#22aa44',yellow:'#ddcc00',white:'#dddddd',black:'#333333',gray:'#888888',grey:'#888888',orange:'#dd6622',purple:'#8844cc',pink:'#dd4488',brown:'#885533',silver:'#aaaaaa',gold:'#ccaa33' };
-  const lower = (name||'').toLowerCase();
+  const lower = (name || '').toLowerCase();
   for (const k of Object.keys(map)) { if (lower.includes(k)) return map[k]; }
   return '#4488cc';
 }
 
-function log(msg, type = '') {
+function logHTML(msg, type = '') {
   const e   = Math.floor((Date.now() - startTime) / 1000);
   const mm  = String(Math.floor(e / 60)).padStart(2,'0');
   const ss  = String(e % 60).padStart(2,'0');
@@ -814,13 +1484,265 @@ function toast(msg, type = '') {
   setTimeout(() => t.remove(), 3200);
 }
 
-function showLoading(msg)   { document.getElementById('loading-text').textContent = msg; document.getElementById('loading').classList.add('active'); }
-function updateLoading(msg) { document.getElementById('loading-text').textContent = msg; }
-function hideLoading()      { document.getElementById('loading').classList.remove('active'); }
+function showLoading(msg, sub)  { document.getElementById('loading-text').textContent = msg; if (sub) document.getElementById('loading-sub').textContent = sub; document.getElementById('loading').classList.add('active'); }
+function updateLoading(msg, sub) { document.getElementById('loading-text').textContent = msg; if (sub) document.getElementById('loading-sub').textContent = sub; }
+function hideLoading()           { document.getElementById('loading').classList.remove('active'); }
+
+
+// ============================================================
+// INPUT MODE: tab switching
+// ============================================================
+let inputMode = 'camera'; // 'camera' | 'upload' | 'video' | 'fullvideo'
+let videoElement = null;  // the loaded video for scrubbing
+let fullVideoFile = null; // for "Upload Full Video" mode: the file to send entirely to Gemini
+
+function switchInputTab(mode) {
+  inputMode = mode;
+  // Update tab styles
+  ['camera','upload','video','fullvideo'].forEach(m => {
+    const tab = document.getElementById('tab-' + m);
+    if (tab) tab.classList.toggle('active', m === mode);
+  });
+  // Show/hide zones
+  document.getElementById('camera-zone').classList.toggle('hidden', mode !== 'camera');
+  document.getElementById('upload-zone').classList.toggle('active', mode === 'upload');
+  document.getElementById('video-zone').style.display = mode === 'video' ? 'block' : 'none';
+  const fvZone = document.getElementById('fullvideo-zone');
+  if (fvZone) fvZone.classList.toggle('active', mode === 'fullvideo');
+
+  // Enable Generate when in fullvideo and we have a file
+  updateGenerateButtonState();
+
+  // Stop camera if switching away
+  if (mode !== 'camera' && stream) closeCamera();
+}
+
+function updateGenerateButtonState() {
+  const btn = document.getElementById('btn-generate');
+  if (!btn) return;
+  const canGenerate = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
+  btn.disabled = !canGenerate;
+}
+
+function handleFullVideoUpload(file) {
+  if (!file) return;
+  const maxMB = 95; // stay under 100MB for Gemini inline
+  if (file.size > maxMB * 1024 * 1024) {
+    toast(`Video must be under ${maxMB}MB for direct send. Use "Upload Video" and grab frames instead.`, 'error');
+    return;
+  }
+  fullVideoFile = file;
+  document.getElementById('fullvideo-preview-row').style.display = 'flex';
+  document.getElementById('fullvideo-filename').textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)';
+  document.getElementById('fullvideo-file-input').value = '';
+  updateGenerateButtonState();
+  logHTML('Full video selected: ' + file.name + ' — click Run AI Chain to send to Gemini.', 'success');
+  toast('Full video ready! Click "Run AI Chain + Generate 3D".', 'success');
+}
+
+function clearFullVideo() {
+  fullVideoFile = null;
+  document.getElementById('fullvideo-preview-row').style.display = 'none';
+  document.getElementById('fullvideo-filename').textContent = '';
+  document.getElementById('fullvideo-file-input').value = '';
+  updateGenerateButtonState();
+}
+
+// ============================================================
+// PHOTO UPLOAD
+// ============================================================
+function handlePhotoUpload(files) {
+  if (!files || files.length === 0) return;
+  const allowed = Array.from(files).slice(0, 5 - captures.length);
+  if (allowed.length === 0) return toast('Already have 5 frames captured.', 'info');
+
+  let loaded = 0;
+  for (const file of allowed) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      // Compress + add to captures
+      compressImage(e.target.result, 512, 0.75).then(dataUrl => {
+        if (captures.length < 5) {
+          captures.push(dataUrl);
+          updateThumbStrip();
+          updateCaptureUI();
+          if (captures.length === 5) {
+            document.getElementById('btn-generate').disabled = false;
+            toast('5 frames ready! Click Generate.', 'success');
+            logHTML('5 photos loaded from upload.', 'success');
+          }
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+  toast(`Loading ${allowed.length} photo(s)...`, 'info');
+  logHTML(`Photo upload: ${allowed.length} file(s) selected.`);
+}
+
+// Drag/drop binding called after DOM ready — see init block below
+
+function _bindPhotoDrop() {
+  const area = document.getElementById('photo-drop-area');
+  if (!area) return;
+  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('dragover'); });
+  area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+  area.addEventListener('drop', e => {
+    e.preventDefault();
+    area.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length) handlePhotoUpload(files);
+    else toast('Please drop image files.', 'error');
+  });
+
+  const vArea = document.getElementById('video-drop-area');
+  if (!vArea) return;
+  vArea.addEventListener('dragover', e => { e.preventDefault(); vArea.classList.add('dragover'); });
+  vArea.addEventListener('dragleave', () => vArea.classList.remove('dragover'));
+  vArea.addEventListener('drop', e => {
+    e.preventDefault();
+    vArea.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
+    if (files.length) handleVideoUpload(files[0]);
+    else toast('Please drop a video file.', 'error');
+  });
+
+  const fvArea = document.getElementById('fullvideo-drop-area');
+  if (fvArea) {
+    fvArea.addEventListener('dragover', e => { e.preventDefault(); fvArea.classList.add('dragover'); });
+    fvArea.addEventListener('dragleave', () => fvArea.classList.remove('dragover'));
+    fvArea.addEventListener('drop', e => {
+      e.preventDefault();
+      fvArea.classList.remove('dragover');
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
+      if (files.length) handleFullVideoUpload(files[0]);
+      else toast('Please drop a video file.', 'error');
+    });
+  }
+}
+
+// ============================================================
+// VIDEO UPLOAD + SCRUBBER
+// ============================================================
+function handleVideoUpload(file) {
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const vid = document.getElementById('video-preview');
+  vid.src = url;
+  vid.onloadedmetadata = () => {
+    document.getElementById('video-scrubber').max = vid.duration;
+    document.getElementById('video-scrubber').step = vid.duration / 200;
+    document.getElementById('scrubber-time').textContent = '0:00 / ' + fmtTime(vid.duration);
+    document.getElementById('video-scrubber-wrap').classList.add('active');
+    document.getElementById('video-drop-area').style.display = 'none';
+    logHTML('Video loaded: ' + file.name + ' (' + fmtTime(vid.duration) + ')', 'success');
+    toast('Video loaded! Scrub to different angles and grab 5 frames.', 'success');
+  };
+  videoElement = vid;
+}
+
+function scrubVideo(val) {
+  if (!videoElement) return;
+  videoElement.currentTime = parseFloat(val);
+  const dur = videoElement.duration || 1;
+  document.getElementById('scrubber-time').textContent = fmtTime(parseFloat(val)) + ' / ' + fmtTime(dur);
+}
+
+function grabVideoFrame() {
+  if (!videoElement || captures.length >= 5) {
+    if (captures.length >= 5) toast('Already have 5 frames.', 'info');
+    return;
+  }
+  // Draw current video frame to hidden canvas
+  const canvas = document.createElement('canvas');
+  canvas.width  = videoElement.videoWidth  || 640;
+  canvas.height = videoElement.videoHeight || 480;
+  canvas.getContext('2d').drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+  compressImage(dataUrl, 512, 0.75).then(compressed => {
+    captures.push(compressed);
+    updateThumbStrip();
+    updateCaptureUI();
+    logHTML('Video frame grabbed at ' + fmtTime(videoElement.currentTime), 'success');
+    if (captures.length === 5) {
+      document.getElementById('btn-generate').disabled = false;
+      toast('5 frames grabbed! Click Generate.', 'success');
+      logHTML('5 video frames captured.', 'success');
+    } else {
+      toast('Frame ' + captures.length + '/5 grabbed.', 'success');
+    }
+  });
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+// ============================================================
+// SHARED THUMB STRIP UPDATER (for all 3 modes)
+// ============================================================
+function updateThumbStrip() {
+  // Update camera thumbs (always rendered)
+  for (let i = 0; i < 5; i++) {
+    const t = document.getElementById('thumb-' + i);
+    if (!t) continue;
+    if (captures[i]) {
+      const img = document.createElement('img');
+      img.src = captures[i];
+      t.innerHTML = '';
+      t.appendChild(img);
+      t.classList.remove('empty'); t.classList.add('filled');
+    } else {
+      t.innerHTML = ''; t.className = 'thumb empty'; t.setAttribute('data-n', i + 1);
+    }
+  }
+  // Update upload/video thumb rows if they exist
+  ['photo-thumb-row', 'video-thumb-row'].forEach(rowId => {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    row.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const t = document.createElement('div');
+      t.className = captures[i] ? 'thumb filled' : 'thumb empty';
+      if (!captures[i]) t.setAttribute('data-n', i + 1);
+      if (captures[i]) {
+        const img = document.createElement('img'); img.src = captures[i];
+        t.appendChild(img);
+        // Remove button
+        const rm = document.createElement('div');
+        rm.style.cssText = 'position:absolute;top:2px;right:2px;width:14px;height:14px;background:rgba(255,68,85,0.9);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.55rem;color:#fff;font-weight:bold;z-index:2';
+        rm.textContent = '×';
+        rm.onclick = (e) => { e.stopPropagation(); removeCapture(i); };
+        t.style.position = 'relative';
+        t.appendChild(rm);
+      }
+      row.appendChild(t);
+    }
+  });
+}
+
+function removeCapture(idx) {
+  captures.splice(idx, 1);
+  updateThumbStrip();
+  updateCaptureUI();
+  document.getElementById('btn-generate').disabled = captures.length < 5;
+}
+
+function updateCaptureUI() {
+  const n = captures.length;
+  document.getElementById('capture-progress').style.width = (n / 5 * 100) + '%';
+  ['capture-count','capture-count-bar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = n + ' / 5 CAPTURED';
+  });
+  updateGenerateButtonState();
+}
 
 // Init
-log('ForgeAI v1.0 loaded. Configure API keys to begin.', 'info');
-if (!CONFIG.geminiKey) setTimeout(() => toast('👋 Add your Gemini API key in ⚙ Config to get started!', 'info'), 1000);
+logHTML('ForgeAI v2.0 loaded — 3-Step Gemini Chain enabled.', 'info');
+_bindPhotoDrop();
 if (user) document.getElementById('auth-btn').textContent = '👤 ' + user.name;
 </script>
 </body>
