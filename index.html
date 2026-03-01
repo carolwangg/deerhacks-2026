@@ -15,6 +15,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
   <style>
     :root {
       --bg: #020810;
@@ -120,6 +122,9 @@
     /* 3D Viewer */
     #viewer-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     #three-canvas { width: 100%; height: 100%; display: block; }
+    #scan-viewer-ar-btn { position: absolute; top: 10px; right: 10px; z-index: 10; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: rgba(6,15,26,0.9); color: var(--teal); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: background 0.2s, border-color 0.2s; }
+    #scan-viewer-ar-btn:hover { background: rgba(0,212,255,0.15); border-color: var(--teal); }
+    #scan-viewer-ar-btn.ar-active { background: rgba(0,212,255,0.2); border-color: var(--green); color: var(--green); }
     .viewer-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; }
     #library-viewer-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     #library-three-canvas { width: 100%; height: 100%; display: block; }
@@ -411,7 +416,7 @@
               🤌 <strong>Pinching:</strong> Pull & deform mesh<br>
               ✋ <strong>Flat hand swipe:</strong> Rotate model
             </div>
-            <div id="gesture-webcam-container" style="position:relative;">
+            <div id="gesture-webcam-container" style="position:relative;display:none;">
               <video id="gesture-webcam" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;transform:scaleX(-1);border-radius:6px;border:1px solid var(--border)"></video>
               <canvas id="gesture-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"> </canvas>
             </div>
@@ -490,7 +495,10 @@
         <div class="panel">
           <div class="panel-title">3D Model Viewer</div>
           <div id="viewer-container">
+            <button type="button" id="scan-viewer-ar-btn" title="Toggle AR view (camera with you)" onclick="toggleScanViewerArMode()">📷</button>
+            <video id="scan-ar-video" playsinline muted style="display:none;"></video>
             <canvas id="three-canvas"></canvas>
+            <canvas id="ar-hand-overlay" style="position:absolute;inset:0;width:100%;height:100%;z-index:5;pointer-events:none;display:none;"></canvas>
             <div class="viewer-placeholder" id="viewer-placeholder">
               <div class="icon">🔮</div>
               <p>Awaiting scan data...</p>
@@ -520,6 +528,7 @@
             <span style="color:var(--dim)">Say: "make it bigger", "rotate left", "change to metal", "red"...</span>
           </div>
           <button class="save-btn" id="save-btn" onclick="saveModel()" disabled>💾 Save to Library</button>
+          <button class="save-btn" id="export-btn" onclick="exportModifiedModel()">💾 Export Model</button>
         </div>
       </div>
     </div>
@@ -584,17 +593,10 @@
 <div class="toast-container" id="toast-container"></div>
 
 <script>
+
 // ============================================================
 // CONFIG
 // ============================================================
-let CONFIG = {
-  geminiKey:         'AIzaSyCW1DJbLIfrP6ANTKdbUjSSwCSp1eTkA6U',
-  elevenLabsKey:     '',
-  // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
-  thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
-  // Meshy: API key for Image-to-3D. Get one at https://www.meshy.ai/settings/api (format msy_...). Test key: msy_dummy_api_key_for_test_mode_12345678
-  meshyApiKey: 'msy_czcf9aMuDWojpg5RZ8oww5QMVrMcR1pBtePt',
-};
 
 let DEBUG = true;
 let BACKEND_URL = 'http://localhost:8000';
@@ -605,6 +607,18 @@ let BACKEND_URL = 'http://localhost:8000';
 let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
+let scanViewerArMode = false;
+let scanViewerArStream = null;
+let scanViewerArVideoPlane = null;
+let scanViewerArVideoTexture = null;
+let scanViewerArHandPlane = null;
+let scanViewerArHandCanvas = null;
+let scanViewerArHandTexture = null;
+let scanViewerArSavedCameraPos = null;
+let scanViewerArSavedObjectPos = null;
+let scanViewerArSavedObjectScale = null;
+let arHands = null;
+let arHandRafId = null;
 let threeSceneLib = null, threeCameraLib = null, threeRendererLib = null, threeObjectLib = null;
 let currentLibraryModelForWithYou = null;
 let libraryWithYouStream = null;
@@ -617,7 +631,47 @@ const startTime = Date.now();
 
 // Chain state
 let chainResults = { step1: null, step2: null, step3: null };
+//============================================================
+// EXPORT MODIFIED MODEL
+//============================================================
+function exportModifiedModel() {
+  if (!threeObject) {
+    console.warn("No object loaded to export.");
+    return;
+  }
+  const exporter = new THREE.GLTFExporter();
 
+  exporter.parse(
+    threeObject,
+    (result) => {
+      const blob = new Blob([result], { type: 'model/gltf-binary' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'mime-craft-model.glb';
+      link.click();
+    },
+    { binary: true }
+  );
+  // exporter.parse(
+  //   threeObject,
+  //   function (result) {
+
+  //     // If exporting as GLB (binary)
+  //     if (result instanceof ArrayBuffer) {
+  //       const blob = new Blob([result], { type: 'model/gltf-binary' });
+  //       downloadBlob(blob, 'modified-model.glb');
+  //     } else {
+  //       // Export as JSON GLTF
+  //       const output = JSON.stringify(result, null, 2);
+  //       const blob = new Blob([output], { type: 'text/plain' });
+  //       downloadBlob(blob, 'modified-model.gltf');
+  //     }
+
+  //     console.log("Model exported successfully.");
+  //   },
+  //   { binary: true } // set to false if you want .gltf instead
+  // );
+}
 // ============================================================
 // STARS
 // ============================================================
@@ -689,15 +743,37 @@ function toggleAuth() {
 }
 
 // ============================================================
-// CAMERA
+// CAMERA (shared stream — one getUserMedia, reuse across features to avoid repeated permission prompts)
 // ============================================================
+let sharedCameraStream = null;
+const cameraStreamFeatureIds = new Set();
+
+async function getCameraStreamForFeature(featureId) {
+  if (sharedCameraStream && sharedCameraStream.getVideoTracks().length > 0 && sharedCameraStream.getVideoTracks()[0].readyState === 'live') {
+    cameraStreamFeatureIds.add(featureId);
+    return sharedCameraStream;
+  }
+  const s = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+  sharedCameraStream = s;
+  cameraStreamFeatureIds.add(featureId);
+  return s;
+}
+
+function releaseCameraStreamForFeature(featureId) {
+  cameraStreamFeatureIds.delete(featureId);
+  if (cameraStreamFeatureIds.size === 0 && sharedCameraStream) {
+    sharedCameraStream.getTracks().forEach(t => t.stop());
+    sharedCameraStream = null;
+  }
+}
+
 async function toggleCamera() {
   if (stream) { await closeCamera(); } else { await startCamera(); }
 }
 
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+    stream = await getCameraStreamForFeature('live');
     document.getElementById('webcam').srcObject = stream;
     document.getElementById('btn-capture').disabled = false;
     document.getElementById('scan-line').classList.add('active');
@@ -710,14 +786,21 @@ async function startCamera() {
   }
 }
 
+/** Disconnect live camera UI only (keeps shared stream for reuse by AR/Gesture/Library so no second permission prompt). */
+function disconnectLiveCameraUI() {
+  stream = null;
+  const webcam = document.getElementById('webcam');
+  if (webcam) webcam.srcObject = null;
+  const btn = document.getElementById('btn-start-cam');
+  if (btn) btn.textContent = 'Start Camera';
+  document.getElementById('btn-capture').disabled = true;
+  document.getElementById('scan-line').classList.remove('active');
+}
+
 async function closeCamera() {
   try {
-    stream.getTracks().forEach(t => t.stop());
-    stream = null;
-    document.getElementById('webcam').srcObject = null;
-    document.getElementById('btn-start-cam').textContent = 'Start Camera';
-    document.getElementById('btn-capture').disabled = true;
-    document.getElementById('scan-line').classList.remove('active');
+    releaseCameraStreamForFeature('live');
+    disconnectLiveCameraUI();
     logHTML('Camera closed', 'success');
     toast('Camera closed.', 'success');
   } catch (e) {
@@ -870,7 +953,62 @@ function extractJSON(text) {
   }
 }
 
+function getDummyGeminiChainJson() {
+  return {
+    detection: {
+      object_name: 'Demo Object',
+      confidence_score: 0.92,
+      confidence_reason: 'Dummy data (GEMINI disabled)',
+      lighting_quality: 'good',
+      image_clarity: 'clear',
+      can_identify: true
+    },
+    identification: {
+      object_type: 'Vase',
+      brand: 'Unknown',
+      item_model: 'Unknown',
+      material: 'ceramic',
+      primary_color: 'blue',
+      estimated_height_cm: 20,
+      estimated_width_cm: 12,
+      estimated_depth_cm: 12,
+      shape_class: 'cylinder',
+      surface_finish: 'glossy',
+      has_handle: false,
+      has_lid: false,
+      notable_features: 'Dummy data',
+      search_query: 'ceramic vase',
+      confidence_score: 0.85,
+      confidence_breakdown: { brand_confidence: 0.5, model_confidence: 0.5, material_confidence: 0.9, dimensions_confidence: 0.7 }
+    },
+    model_ref: {
+      model_url: [],
+      model_source: 'Dummy (GEMINI disabled)',
+      model_match_quality: 'close',
+      improvement_instructions: [
+        'Add more reference angles',
+        'Improve lighting',
+        'Show scale reference',
+        'Capture texture detail',
+        'Include top view'
+      ],
+      three_js_geometry: 'CylinderGeometry',
+      geometry_args: [0.4, 0.4, 1.2, 32],
+      color_hex: '#4488ff',
+      roughness: 0.3,
+      metalness: 0,
+      emissive_hex: '#001122',
+      has_secondary_geometry: false
+    }
+  };
+}
+
 async function callGemini(parts, jsonMode = true) {
+  if (CONFIG.GEMINI === false) {
+    logHTML('Using dummy Gemini data (GEMINI disabled).', 'info');
+    const json = getDummyGeminiChainJson();
+    return { text: JSON.stringify(json), json, model: 'dummy' };
+  }
   let lastError = '';
   for (const modelName of GEMINI_MODELS) {
     try {
@@ -978,10 +1116,14 @@ function getImageParts() {
 // Saves 2 out of 3 API calls per run (critical on free tier: 20 RPD)
 // ============================================================
 async function testApiKey() {
+  if (CONFIG.GEMINI === false) {
+    log('API key test skipped (GEMINI disabled, using dummy data).', 'info');
+    return;
+  }
   // Cheap text-only ping to verify the key works before sending images
   log('Testing API key (text-only ping)...', 'info');
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${CONFIG.geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS[0]}:generateContent?key=${CONFIG.geminiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1123,7 +1265,7 @@ let _lastGenerateTime = 0;
 async function generateModel() {
   const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
   if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
-  if (!CONFIG.geminiKey)   return toast('Add your Gemini API key in the CONFIG to get started.', 'info');
+  if (CONFIG.GEMINI !== false && !CONFIG.geminiKey) return toast('Add your Gemini API key in the CONFIG to get started.', 'info');
 
   // Free tier: 10 RPM limit. Enforce a 12-second minimum between requests.
   const now = Date.now();
@@ -1289,12 +1431,30 @@ function buildGeminiJsonForMeshy(chainData) {
   };
 }
 
+/** Display a placeholder cube in the Scan 3D viewer (used when DEBUG is true instead of Meshy GLB). */
+function displayPlaceholderCubeInThree() {
+  if (!window.THREE) return Promise.reject(new Error('THREE not loaded'));
+  if (!threeScene) initThreeJS();
+  if (threeObject) {
+    threeScene.remove(threeObject);
+    threeObject = null;
+  }
+  const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+  const material = new THREE.MeshPhongMaterial({ color: 0x00d4ff, specular: 0x222222, shininess: 20 });
+  const mesh = new THREE.Mesh(geometry, material);
+  const group = new THREE.Group();
+  group.add(mesh);
+  threeScene.add(group);
+  threeObject = group;
+  return Promise.resolve(group);
+}
+
 async function generateModelWithMeshy() {
-  closeCamera();
+  if (stream) disconnectLiveCameraUI();
   const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
   if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
-  if (!CONFIG.geminiKey) return toast('Set CONFIG.geminiKey for the Gemini pipeline.', 'info');
-  if (!CONFIG.meshyApiKey) return toast('Set CONFIG.meshyApiKey (https://www.meshy.ai/settings/api).', 'info');
+  if (CONFIG.GEMINI !== false && !CONFIG.geminiKey) return toast('Set CONFIG.geminiKey for the Gemini pipeline.', 'info');
+  if (!DEBUG && !CONFIG.meshyApiKey) return toast('Set CONFIG.meshyApiKey (https://www.meshy.ai/settings/api).', 'info');
 
   document.getElementById('ai-chain-panel').style.display = 'block';
   document.getElementById('ai-chain-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1317,6 +1477,31 @@ async function generateModelWithMeshy() {
   const geminiJson = buildGeminiJsonForMeshy(chainData);
   const promptForMeshy = JSON.stringify(geminiJson);
   logHTML('Gemini JSON for Meshy (no improvement_instructions): ' + promptForMeshy.slice(0, 200) + (promptForMeshy.length > 200 ? '...' : ''), 'info');
+
+  if (DEBUG) {
+    updateLoading('Loading placeholder cube (DEBUG)...');
+    logHTML('DEBUG: using placeholder cube instead of Meshy.', 'info');
+    try {
+      await displayPlaceholderCubeInThree();
+      document.getElementById('viewer-placeholder').style.display = 'none';
+      document.getElementById('model-info').classList.add('visible');
+      document.getElementById('save-btn').disabled = false;
+      currentModel = {
+        id: 'meshy_placeholder_' + Date.now(),
+        name: (chainData.step2 && chainData.step2.object_type) || (chainData.step1 && chainData.step1.object_name) || 'Placeholder (DEBUG)',
+        params: {},
+        gemini: chainData.step2 || chainData.step1 || {},
+      };
+    } catch (e) {
+      hideLoading();
+      toast('Placeholder failed: ' + (e && e.message), 'error');
+      return;
+    }
+    hideLoading();
+    toast('Placeholder cube displayed (DEBUG mode — no Meshy call).', 'success');
+    logHTML('Placeholder cube loaded.', 'success');
+    return;
+  }
 
   updateLoading('Sending to Meshy Text-to-3D (Gemini JSON, no image; model 6)...');
   logHTML('Meshy: creating Text-to-3D task (Meshy-6, prompt from Gemini)...', 'info');
@@ -1517,18 +1702,177 @@ function initThreeJS() {
     prevX = e.clientX; prevY = e.clientY;
   });
   canvas.addEventListener('mouseup',   () => isDragging = false);
-  canvas.addEventListener('wheel',     e  => { threeCamera.position.z = Math.max(1.5, Math.min(8, threeCamera.position.z + e.deltaY * 0.005)); });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    targetCameraZoom += e.deltaY * 0.005;
+    targetCameraZoom = Math.max(2, Math.min(10, targetCameraZoom));
+  }, { passive: false });
 
   (function animate() {
     requestAnimationFrame(animate);
     if (threeObject) threeObject.rotation.y += 0.005;
-    updateCameraZoom();  // Smooth camera zoom during gesture
+    updateCameraZoom();
+    if (scanViewerArMode) {
+      if (threeCamera) {
+        threeCamera.position.set(0, 0, (currentCameraZoom - 2) * 0.08);
+        threeCamera.lookAt(0, 0, -1);
+      }
+      const arVideo = document.getElementById('scan-ar-video');
+      if (arVideo && arVideo.readyState >= 2 && scanViewerArVideoTexture) scanViewerArVideoTexture.needsUpdate = true;
+    } else {
+      if (threeCamera) threeCamera.position.z = currentCameraZoom;
+    }
     if (threeRenderer && threeScene && threeCamera) threeRenderer.render(threeScene, threeCamera);
   })();
 }
 
+async function toggleScanViewerArMode() {
+  const btn = document.getElementById('scan-viewer-ar-btn');
+  const video = document.getElementById('scan-ar-video');
+  if (!threeScene || !threeCamera) {
+    initThreeJS();
+    if (!threeScene || !threeCamera) return;
+  }
+
+  if (scanViewerArMode) {
+    scanViewerArMode = false;
+    btn.classList.remove('ar-active');
+    btn.title = 'Show AR view (camera with you)';
+    if (arHandRafId) { cancelAnimationFrame(arHandRafId); arHandRafId = null; }
+    const arOverlay = document.getElementById('ar-hand-overlay');
+    if (arOverlay) { arOverlay.style.display = 'none'; const ctx = arOverlay.getContext('2d'); if (ctx) ctx.clearRect(0, 0, arOverlay.width, arOverlay.height); }
+    if (scanViewerArStream) {
+      releaseCameraStreamForFeature('ar');
+      scanViewerArStream = null;
+    }
+    if (scanViewerArVideoPlane && threeScene.children.includes(scanViewerArVideoPlane)) {
+      threeScene.remove(scanViewerArVideoPlane);
+      if (scanViewerArVideoPlane.geometry) scanViewerArVideoPlane.geometry.dispose();
+      if (scanViewerArVideoPlane.material && scanViewerArVideoPlane.material.map) scanViewerArVideoPlane.material.map.dispose();
+      scanViewerArVideoPlane.material.dispose();
+      scanViewerArVideoPlane = null;
+    }
+    scanViewerArVideoTexture = null;
+    if (scanViewerArHandPlane && threeScene.children.includes(scanViewerArHandPlane)) {
+      threeScene.remove(scanViewerArHandPlane);
+      if (scanViewerArHandPlane.geometry) scanViewerArHandPlane.geometry.dispose();
+      if (scanViewerArHandPlane.material && scanViewerArHandPlane.material.map) scanViewerArHandPlane.material.map.dispose();
+      scanViewerArHandPlane.material.dispose();
+      scanViewerArHandPlane = null;
+    }
+    scanViewerArHandTexture = null;
+    scanViewerArHandCanvas = null;
+    if (video) video.srcObject = null;
+    if (scanViewerArSavedCameraPos) threeCamera.position.copy(scanViewerArSavedCameraPos);
+    threeCamera.lookAt(0, 0, 0);
+    if (threeObject && scanViewerArSavedObjectPos) threeObject.position.copy(scanViewerArSavedObjectPos);
+    if (threeObject && scanViewerArSavedObjectScale) threeObject.scale.copy(scanViewerArSavedObjectScale);
+    return;
+  }
+
+  if (!threeObject) {
+    if (typeof toast === 'function') toast('Generate or load a model first.', 'info');
+    return;
+  }
+  try {
+    scanViewerArStream = await getCameraStreamForFeature('ar');
+    if (!video) return;
+    video.srcObject = scanViewerArStream;
+    await video.play();
+  } catch (e) {
+    if (typeof toast === 'function') toast('Camera access denied.', 'error');
+    return;
+  }
+
+  scanViewerArSavedCameraPos = threeCamera.position.clone();
+  if (threeObject) {
+    scanViewerArSavedObjectPos = threeObject.position.clone();
+    scanViewerArSavedObjectScale = threeObject.scale.clone();
+  }
+
+  scanViewerArVideoTexture = new THREE.VideoTexture(video);
+  scanViewerArVideoTexture.minFilter = THREE.LinearFilter;
+  scanViewerArVideoTexture.magFilter = THREE.LinearFilter;
+  const container = document.getElementById('viewer-container');
+  const viewAspect = container && container.clientHeight ? container.clientWidth / container.clientHeight : 16 / 9;
+  const planeW = 2 * Math.max(viewAspect, 1);
+  const planeH = 2 * Math.max(1 / viewAspect, 1);
+  const bgGeo = new THREE.PlaneGeometry(planeW, planeH);
+  const bgMat = new THREE.MeshBasicMaterial({ map: scanViewerArVideoTexture, depthWrite: false });
+  scanViewerArVideoPlane = new THREE.Mesh(bgGeo, bgMat);
+  scanViewerArVideoPlane.position.z = -1.5;
+  threeScene.add(scanViewerArVideoPlane);
+
+  var handCanvasW = 512;
+  var handCanvasH = Math.round(512 / viewAspect);
+  scanViewerArHandCanvas = document.createElement('canvas');
+  scanViewerArHandCanvas.width = handCanvasW;
+  scanViewerArHandCanvas.height = handCanvasH;
+  scanViewerArHandTexture = new THREE.CanvasTexture(scanViewerArHandCanvas);
+  scanViewerArHandTexture.minFilter = THREE.LinearFilter;
+  scanViewerArHandTexture.magFilter = THREE.LinearFilter;
+  var handGeo = new THREE.PlaneGeometry(planeW, planeH);
+  var handMat = new THREE.MeshBasicMaterial({
+    map: scanViewerArHandTexture,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false
+  });
+  scanViewerArHandPlane = new THREE.Mesh(handGeo, handMat);
+  scanViewerArHandPlane.position.z = -1.49;
+  threeScene.add(scanViewerArHandPlane);
+
+  threeCamera.position.set(0, 0, 0);
+  threeCamera.lookAt(0, 0, -1);
+  if (threeObject) {
+    threeObject.position.set(0, -0.1, -0.7);
+    threeObject.scale.setScalar(0.1);
+  }
+
+  scanViewerArMode = true;
+  btn.classList.add('ar-active');
+  btn.title = 'Hide AR view (3D only)';
+
+  var arOverlay = document.getElementById('ar-hand-overlay');
+  if (arOverlay) arOverlay.style.display = 'none';
+  if (typeof Hands !== 'undefined') {
+    if (!arHands) {
+      arHands = new Hands({ locateFile: (file) => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/' + file });
+      arHands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      arHands.onResults(function onARHandResults(results) {
+        try {
+          drawARHandOverlay(results);
+          if (scanViewerArMode && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            const gesture = typeof detectGesture === 'function' ? detectGesture(landmarks) : null;
+            if (gesture && gesture.type && typeof applyGestureToMesh === 'function') applyGestureToMesh(gesture, landmarks);
+          }
+        } catch (err) {
+          console.warn('AR hand results error:', err);
+        }
+      });
+    }
+    function arHandTick() {
+      if (!scanViewerArMode) return;
+      if (!arHands || !video || video.readyState < 2 || video.videoWidth <= 0 || video.videoHeight <= 0) {
+        arHandRafId = requestAnimationFrame(arHandTick);
+        return;
+      }
+      arHands.send({ image: video }).then(() => {
+        if (scanViewerArMode) arHandRafId = requestAnimationFrame(arHandTick);
+      }).catch(() => { if (scanViewerArMode) arHandRafId = requestAnimationFrame(arHandTick); });
+    }
+    arHandRafId = requestAnimationFrame(arHandTick);
+  }
+}
+
 function renderThreeModel(params, geminiData) {
   if (!threeScene) initThreeJS();
+  // In gesture mode, preserve the deformed mesh so gesture sculpt stays in sync with "the model"
+  if (inputMode === 'gesture' && gestureSculptMesh && threeObject && threeScene.children.includes(threeObject)) {
+    const firstChild = threeObject.children[0];
+    if (firstChild === gestureSculptMesh) return;
+  }
   if (threeObject) threeScene.remove(threeObject);
   const group = new THREE.Group();
 
@@ -1537,30 +1881,35 @@ function renderThreeModel(params, geminiData) {
     const t    = params.primary_geometry?.type || 'CylinderGeometry';
     let args = params.primary_geometry?.args || [0.4, 0.4, 1.5, 32];
 
-    // For gesture mode, use high-res sphere for smooth deformation
-    if (inputMode === 'gesture' && t === 'SphereGeometry') {
-      args = [0.7, 64, 64];  // 64x64 subdivisions for detailed sculpting
+    if (inputMode === 'gesture' && currentModel && currentModel.deformedGeometry) {
+      geo = currentModel.deformedGeometry.clone();
+    } else {
+      // For gesture mode, use high-res sphere for smooth deformation
+      if (inputMode === 'gesture' && t === 'SphereGeometry') {
+        args = [0.7, 64, 64];  // 64x64 subdivisions for detailed sculpting
+      }
+      if      (t === 'CylinderGeometry') geo = new THREE.CylinderGeometry(...args);
+      else if (t === 'BoxGeometry')      geo = new THREE.BoxGeometry(...args);
+      else if (t === 'SphereGeometry')   geo = new THREE.SphereGeometry(...args);
+      else if (t === 'ConeGeometry')     geo = new THREE.ConeGeometry(...args);
+      else if (t === 'TorusGeometry')    geo = new THREE.TorusGeometry(...args);
+      else                               geo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
+      // Convert to BufferGeometry if needed for vertex manipulation
+      if (!(geo instanceof THREE.BufferGeometry)) {
+        const bg = new THREE.BufferGeometry();
+        bg.fromGeometry(geo);
+        geo = bg;
+      }
     }
 
-    if      (t === 'CylinderGeometry') geo = new THREE.CylinderGeometry(...args);
-    else if (t === 'BoxGeometry')      geo = new THREE.BoxGeometry(...args);
-    else if (t === 'SphereGeometry')   geo = new THREE.SphereGeometry(...args);
-    else if (t === 'ConeGeometry')     geo = new THREE.ConeGeometry(...args);
-    else if (t === 'TorusGeometry')    geo = new THREE.TorusGeometry(...args);
-    else                               geo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
-
-    // Convert to BufferGeometry if needed for vertex manipulation
-    if (!(geo instanceof THREE.BufferGeometry)) {
-      const bg = new THREE.BufferGeometry();
-      bg.fromGeometry(geo);
-      geo = bg;
-    }
-
-    // Store original positions for deformation
+    // Store original positions for deformation (from current geometry so further deformations are additive)
     const posAttr = geo.getAttribute('position');
     if (posAttr) {
-      originalPositions = new Float32Array(posAttr.array);
-      geo.setAttribute('position', new THREE.BufferAttribute(posAttr.array.slice(), 3));
+      originalPositions = new Float32Array(posAttr.array.length);
+      originalPositions.set(posAttr.array);
+      if (!currentModel || !currentModel.deformedGeometry) {
+        geo.setAttribute('position', new THREE.BufferAttribute(posAttr.array.slice(), 3));
+      }
       geo.computeVertexNormals();
     }
 
@@ -1935,19 +2284,21 @@ function initLibraryWithYouViewer() {
   if (!canvas || !container || !window.THREE || threeRendererWithYou) return;
 
   threeRendererWithYou = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  threeRendererWithYou.setSize(container.clientWidth, container.clientHeight);
+  const w = Math.max(1, container.clientWidth || 640);
+  const h = Math.max(1, container.clientHeight || 480);
+  threeRendererWithYou.setSize(w, h);
   threeRendererWithYou.setPixelRatio(Math.min(2, window.devicePixelRatio));
   threeRendererWithYou.setClearColor(0x000000, 1);
 
   threeSceneWithYou = new THREE.Scene();
-  threeCameraWithYou = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+  threeCameraWithYou = new THREE.PerspectiveCamera(60, w / h, 0.1, 100);
   threeCameraWithYou.position.set(0, 0, 0);
   threeCameraWithYou.lookAt(0, 0, -1);
 
   videoTextureWithYou = new THREE.VideoTexture(video);
   videoTextureWithYou.minFilter = THREE.LinearFilter;
   videoTextureWithYou.magFilter = THREE.LinearFilter;
-  const bgGeo = new THREE.PlaneGeometry(2, 2 * (container.clientHeight / container.clientWidth));
+  const bgGeo = new THREE.PlaneGeometry(2, 2 * (h / w));
   const bgMat = new THREE.MeshBasicMaterial({ map: videoTextureWithYou, depthWrite: false });
   const bgMesh = new THREE.Mesh(bgGeo, bgMat);
   bgMesh.position.z = -1.5;
@@ -2005,7 +2356,7 @@ async function toggleLibraryWithYouCamera() {
   const btn = document.getElementById('library-withyou-cam-btn');
   const placeholder = document.getElementById('library-withyou-placeholder');
   if (libraryWithYouStream) {
-    libraryWithYouStream.getTracks().forEach(t => t.stop());
+    releaseCameraStreamForFeature('libraryWithYou');
     libraryWithYouStream = null;
     if (libraryWithYouAnimationId) cancelAnimationFrame(libraryWithYouAnimationId);
     libraryWithYouAnimationId = null;
@@ -2020,7 +2371,7 @@ async function toggleLibraryWithYouCamera() {
     return;
   }
   try {
-    libraryWithYouStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    libraryWithYouStream = await getCameraStreamForFeature('libraryWithYou');
     const video = document.getElementById('library-withyou-video');
     video.srcObject = libraryWithYouStream;
     await video.play();
@@ -2068,15 +2419,24 @@ function loadModelIntoLibraryWithYouScene(url, format, onLoad) {
     modelGroupWithYou = null;
   }
   format = format || (url && url.toLowerCase().match(/\.(stl|obj|glb|gltf)(\?|$)/) && RegExp.$1) || 'stl';
-  const onLoaded = (group) => {
+    const onLoaded = (group) => {
     if (!(group instanceof THREE.Group)) group = new THREE.Group().add(group);
-    group.scale.setScalar(0.15);
+    group.scale.setScalar(0.001);
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(group);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    group.position.sub(center);
     group.position.set(0, -0.1, -0.7);
     threeSceneWithYou.add(group);
     modelGroupWithYou = group;
     if (onLoad) onLoad();
   };
-  const onError = (err) => console.warn('Library WithYou model load error:', err);
+  const onError = (err) => {
+    console.warn('Library WithYou model load error:', err);
+    if (typeof toast === 'function') toast('Model load failed (check console). Camera only.', 'error');
+    if (onLoad) onLoad();
+  };
   if (format === 'stl' && window.THREE.STLLoader) {
     const loader = new THREE.STLLoader();
     loader.load(url, (geometry) => {
@@ -2368,8 +2728,8 @@ function switchInputTab(mode) {
   // Enable Generate when in fullvideo and we have a file
   updateGenerateButtonState();
 
-  // Stop camera if switching away from camera mode
-  if (mode !== 'camera' && stream) closeCamera();
+  // Disconnect live camera UI when switching away (keep stream for reuse — avoids second permission prompt for AR/Gesture/Library)
+  if (mode !== 'camera' && stream) disconnectLiveCameraUI();
 
   // Stop gesture mode when leaving
   if (mode !== 'gesture' && gestureActive) {
@@ -2691,9 +3051,8 @@ async function initGestureMode() {
     hands.onResults(onGestureResults);
     gestureHands = hands;
     
-    // Set up camera
+    // Set up camera (shared stream — no extra permission prompt if already granted elsewhere)
     const gestureVid = document.getElementById('gesture-webcam');
-    // keep overlay canvas matched to video size
     gestureVid.onloadedmetadata = () => {
       const canvas = document.getElementById('gesture-canvas');
       if (canvas) {
@@ -2701,18 +3060,30 @@ async function initGestureMode() {
         canvas.height = gestureVid.videoHeight;
       }
     };
-    const camera = new Camera(gestureVid, {
-      onFrame: async () => {
-        if (gestureActive) {
-          await hands.send({ image: gestureVid });
-        }
+    gestureCam = {
+      _rafId: null,
+      async start() {
+        const s = await getCameraStreamForFeature('gesture');
+        gestureVid.srcObject = s;
+        await gestureVid.play();
+        const tick = () => {
+          if (gestureActive && gestureHands && gestureVid.readyState >= 2) {
+            gestureHands.send({ image: gestureVid }).then(() => {
+              this._rafId = requestAnimationFrame(tick);
+            }).catch(() => {});
+          } else {
+            this._rafId = requestAnimationFrame(tick);
+          }
+        };
+        this._rafId = requestAnimationFrame(tick);
       },
-      width: 640,
-      height: 480
-    });
-    
-    gestureCam = camera;
-    await camera.initialize();
+      async stop() {
+        if (this._rafId) cancelAnimationFrame(this._rafId);
+        this._rafId = null;
+        releaseCameraStreamForFeature('gesture');
+        gestureVid.srcObject = null;
+      }
+    };
     
     logHTML('Gesture detection ready! Start gesture mode to begin sculpting.', 'success');
     updateGestureUI('Ready — show your hand to start', 'success');
@@ -2745,10 +3116,7 @@ function onGestureResults(results) {
   const landmarks = results.multiHandLandmarks[0];
   const handedness = results.multiHandedness[0]?.label || 'Right';
   
-  // Detect gesture and apply deformation
-  // draw skeleton for debugging
-  drawHandLandmarks(results);
-
+  // Detect gesture and apply deformation (camera display hidden; hand overlay only in AR mode)
   const gesture = detectGesture(landmarks);
   if (gesture && gesture.type) {
     applyGestureToMesh(gesture, landmarks);
@@ -2780,10 +3148,34 @@ function onGestureResults(results) {
 // Temporal smoothing state
 let lastGestureState = 'none';
 let gestureConfidenceBuffer = [];
+let lock = false;
+let wasPeace = false;
+
+// Scaling states
+let scalingEnabled = false;
+let lastThumbIndexDistance = null;
+let modelScaleFactor = 1;
+const SCALE_SENSITIVITY = 0.5;  // higher = faster scaling
+const MIN_SCALE = 0.3*0.1;
+const MAX_SCALE = 4.0*0.1;
+
+// Editing modes
+let horizontalStretchMode = false;
+let horizontalScaleMode = false;
+
+let lastThreeFingerDistance = null;
+let lastFourFingerDistance = null;
+
+const STRETCH_SENSITIVITY = 3.0;
+const SCALE_X_SENSITIVITY = 2.5;
+
+const MIN_STRETCH = 0.3;
+const MAX_STRETCH = 5.0;
+
 // Gesture thresholds (normalized by hand scale)
 const SMOOTHING_FRAMES = 5;
 const EXTENSION_THRESHOLD = 0.12;       // how far a finger tip must be beyond its MCP to count as extended
-const PINCH_DISTANCE_THRESHOLD = 0.14;  // thumb‑index separation for pinch
+const PINCH_DISTANCE_THRESHOLD = 0.3;  // thumb‑index separation for pinch
 const POINT_DISTANCE_THRESHOLD = 0.10;  // minimum thumb‑index separation for point
 const OPEN_DISTANCE_THRESHOLD = 0.25;   // thumb‑index separation for open hand
 
@@ -2846,7 +3238,8 @@ function getNormalizedDistance(idx1, idx2, landmarks, handScale) {
  * 2. PINCH: Thumb + Index close, others folded
  * 3. POINT: Index extended, others folded, thumb away
  * 4. OPEN: All fingers extended, well separated
- * 5. NONE: No clear gesture
+ * 5. PEACE: LOCK THE THING
+ * 6. NONE: No clear gesture
  */
 function detectGestureRobust(landmarks) {
   const handScale = getHandScale(landmarks);
@@ -2859,7 +3252,24 @@ function detectGestureRobust(landmarks) {
   const pinky = { tip: 20, mcp: 17 };
   
   // Compute finger states
-  const thumbExtended = isFingerExtended(thumb.tip, thumb.mcp, landmarks, handScale);
+  let thumbExtended = isFingerExtended(thumb.tip, thumb.mcp, landmarks, handScale);
+  const indexTip = landmarks[index.tip];
+  const pinkyTip = landmarks[pinky.tip];
+  const thumbTip = landmarks[thumb.tip];
+  if (indexTip && pinkyTip && thumbTip) {
+    if (indexTip.x > pinkyTip.x) {
+      if (indexTip.x > thumbTip.x && thumbTip.x > pinkyTip.x) {
+        thumbExtended = false;
+      }
+    }else{
+      if (pinkyTip.x > indexTip.x) {
+      if (pinkyTip.x > thumbTip.x && thumbTip.x > indexTip.x) {
+          thumbExtended = false;
+        }
+      }
+    }
+  } 
+  
   const indexExtended = isFingerExtended(index.tip, index.mcp, landmarks, handScale);
   const middleExtended = isFingerExtended(middle.tip, middle.mcp, landmarks, handScale);
   const ringExtended = isFingerExtended(ring.tip, ring.mcp, landmarks, handScale);
@@ -2882,11 +3292,145 @@ function detectGestureRobust(landmarks) {
     pinkyExtended,
     thumbIndexDist: thumbIndexDist.toFixed(3)
   };
-  
+
+  // ==========================================================
+// ✋ 3 Fingers → Toggle Horizontal Stretch Mode
+// ==========================================================
+// if (
+//   extendedCount === 3 &&
+//   indexExtended &&
+//   middleExtended &&
+//   ringExtended
+// ) {
+//   horizontalStretchMode = !horizontalStretchMode;
+//   horizontalScaleMode = false; // disable other mode
+//   lastThreeFingerDistance = null;
+
+//   return {
+//     type: horizontalStretchMode ? 'HORIZONTAL_STRETCH_ON' : 'HORIZONTAL_STRETCH_OFF',
+//     confidence: 0.95,
+//     debug: debugInfo
+//   };
+// }
+  // ==========================================================
+  // 👍 THUMBS UP / 👎 THUMBS DOWN DETECTION
+  // ==========================================================
+  // Only thumb extended
+  if (
+    thumbExtended &&
+    !indexExtended &&
+    !middleExtended &&
+    !ringExtended &&
+    !pinkyExtended
+  ) {
+    const thumbTip = landmarks[thumb.tip];
+    const thumbMCP = landmarks[thumb.mcp];
+    console.log("thumbLength: "+ Math.abs(thumbTip.y - thumbMCP.y))
+    if (Math.abs(thumbTip.y - thumbMCP.y) > 0.1) {
+      const isThumbUp = thumbTip.y < thumbMCP.y;
+      const isThumbDown = thumbTip.y > thumbMCP.y;
+
+      if (isThumbUp) {
+        scalingEnabled = true;
+        console.log("start scaling")
+        lastThumbIndexDistance = thumbIndexDist;
+        return { type: 'THUMBS_UP', confidence: 0.95, debug: debugInfo };
+      }
+
+      if (isThumbDown) {
+        scalingEnabled = false;
+        console.log("end scaling")
+        lastThumbIndexDistance = null;
+        return { type: 'THUMBS_DOWN', confidence: 0.95, debug: debugInfo };
+      }
+    }
+    
+  }
+
+  if (horizontalStretchMode && indexExtended && ringExtended) {
+    const threeFingerDistance = getNormalizedDistance(
+      8,   // index tip
+      16,  // ring tip
+      landmarks,
+      handScale
+    );
+
+    if (lastThreeFingerDistance !== null) {
+      const delta = threeFingerDistance - lastThreeFingerDistance;
+
+      if (threeObject) {
+        threeObject.scale.x += delta * STRETCH_SENSITIVITY;
+
+        threeObject.scale.x = Math.max(
+          MIN_STRETCH,
+          Math.min(MAX_STRETCH, threeObject.scale.x)
+        );
+      }
+    }
+
+    lastThreeFingerDistance = threeFingerDistance;
+
+    return { type: 'STRETCHING_X', confidence: 0.9, debug: debugInfo };
+    }
+    if (horizontalScaleMode && indexExtended && pinkyExtended) {
+
+    const fourFingerDistance = getNormalizedDistance(
+      8,   // index tip
+      20,  // pinky tip
+      landmarks,
+      handScale
+    );
+
+    if (lastFourFingerDistance !== null) {
+      const delta = fourFingerDistance - lastFourFingerDistance;
+
+      if (threeObject) {
+        const newScaleX = threeObject.scale.x + delta * SCALE_X_SENSITIVITY;
+
+        threeObject.scale.x = Math.max(
+          MIN_STRETCH,
+          Math.min(MAX_STRETCH, newScaleX)
+        );
+      }
+    }
+
+    lastFourFingerDistance = fourFingerDistance;
+
+    return { type: 'SCALING_X', confidence: 0.9, debug: debugInfo };
+}
+  // ==========================================================
+  // 🤏 SCALING MODE (Thumb + Index distance delta)
+  // ==========================================================
+  if (scalingEnabled && thumbExtended && indexExtended) {
+    if (lastThumbIndexDistance !== null) {
+      const delta = thumbIndexDist - lastThumbIndexDistance;
+      console.log("delta: "+ delta)
+      modelScaleFactor += (delta * SCALE_SENSITIVITY)*0.1;
+      modelScaleFactor = Math.max(MIN_SCALE, Math.min(MAX_SCALE, modelScaleFactor));
+      console.log("modelScaleFactor: "+ modelScaleFactor)
+      console.log("lastThumbIndexDistance: "+ lastThumbIndexDistance)
+      console.log("thumbIndexDist: "+ thumbIndexDist)
+      if (threeObject) {
+        threeObject.scale.set(
+          modelScaleFactor,
+          modelScaleFactor,
+          modelScaleFactor
+        );
+      }
+    }
+    lastThumbIndexDistance = thumbIndexDist;
+    return { type: 'SCALING', confidence: 0.95, debug: debugInfo };
+  }
+
+  // Reset distance memory when not scaling
+  if (!thumbExtended || !indexExtended) {
+    lastThumbIndexDistance = null;
+  }
+
   // ===== GESTURE CLASSIFICATION (Priority-based, mutually exclusive) =====
-  
   // 1. FIST - ALL fingers folded (none extended)
   if (extendedCount < 2) {
+    wasPeace = false;
     return { type: 'FIST', confidence: 0.95, debug: debugInfo };
   }
   
@@ -2895,8 +3439,11 @@ function detectGestureRobust(landmarks) {
   // slight bending during a pinch may fail the extension test.  Instead
   // we look only at the normalized separation and ensure the other three
   // fingers are folded.
+  console.log("thumbIndexDist", thumbIndexDist);
   if (thumbIndexDist < PINCH_DISTANCE_THRESHOLD) {
+    
     if (!middleExtended && !ringExtended && !pinkyExtended) {
+      wasPeace = false;
       return { type: 'PINCH', confidence: 0.95, debug: debugInfo };
     }
   }
@@ -2904,20 +3451,31 @@ function detectGestureRobust(landmarks) {
   // 3. POINT - Index extended, thumb far, all others folded
   // Must check: index extended AND other fingers NOT extended AND thumb not too close
   if (indexExtended && thumbIndexDist > POINT_DISTANCE_THRESHOLD) {
+    
     if (!middleExtended && !ringExtended && !pinkyExtended) {
       // Could be POINT even if thumb not extended (e.g., relaxed thumb)
+      wasPeace = false;
       return { type: 'POINT', confidence: 0.95, debug: debugInfo };
     }
   }
   
   // 4. OPEN HAND - ALL 5 fingers extended and well separated
   if (thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
+   
     // Extra check: thumb and index must be far apart (> 0.25)
     if (thumbIndexDist > OPEN_DISTANCE_THRESHOLD) {
+      wasPeace = false;
       return { type: 'OPEN', confidence: 0.95, debug: debugInfo };
     }
   }
+
+  // 4. PEACE -two fingers extended and the other three are folded
+  if (indexExtended && middleExtended && !ringExtended && !pinkyExtended) {
+    // Extra check: thumb and index must be far apart (> 0.25)
+    return { type: 'PEACE', confidence: 0.95, debug: debugInfo };
+  }
   
+  wasPeace = false;
   // No clear gesture detected
   return { type: 'none', confidence: 0.0, debug: debugInfo };
 }
@@ -2938,7 +3496,8 @@ function smoothGesture(gestureFrame) {
   // Count gesture types in buffer with confidence weighting
   const counts = {};
   for (const frame of gestureConfidenceBuffer) {
-    counts[frame.type] = (counts[frame.type] || 0) + frame.confidence;
+    const t = frame.type || 'none';
+    counts[t] = (counts[t] || 0) + (frame.confidence || 0);
   }
   
   // Find most confident gesture in buffer
@@ -2981,31 +3540,28 @@ let gestureDebugCounter = 0;
 function detectGesture(landmarks) {
   const rawGesture = detectGestureRobust(landmarks);
   const smoothedType = smoothGesture(rawGesture);
-  
-  // Log debug info frequently for debugging
+  const debug = rawGesture.debug || { handScale: '0', extendedCount: 0, thumbExtended: false, indexExtended: false, middleExtended: false, ringExtended: false, pinkyExtended: false, thumbIndexDist: '0' };
+
   gestureDebugCounter++;
-  
-  // Log to console more frequently (every 3rd frame = ~10Hz at 30FPS)
   if (gestureDebugCounter % 3 === 0) {
-    const fingerStates = `T:${rawGesture.debug.thumbExtended ? '✓' : '✗'} I:${rawGesture.debug.indexExtended ? '✓' : '✗'} M:${rawGesture.debug.middleExtended ? '✓' : '✗'} R:${rawGesture.debug.ringExtended ? '✓' : '✗'} P:${rawGesture.debug.pinkyExtended ? '✓' : '✗'}`;
-    const bufferStates = gestureConfidenceBuffer.map(g => g.type.substr(0, 3)).join('|');
+    const fingerStates = `T:${debug.thumbExtended ? '✓' : '✗'} I:${debug.indexExtended ? '✓' : '✗'} M:${debug.middleExtended ? '✓' : '✗'} R:${debug.ringExtended ? '✓' : '✗'} P:${debug.pinkyExtended ? '✓' : '✗'}`;
+    const bufferStates = gestureConfidenceBuffer.map(g => (g.type || '').substr(0, 3)).join('|');
     console.log(
-      `Gesture: ${smoothedType.padEnd(6)} (raw: ${rawGesture.type.padEnd(6)}) | ` +
-      `Scale: ${rawGesture.debug.handScale} | ` +
-      `Fingers: ${fingerStates} (${rawGesture.debug.extendedCount} ext) | ` +
-      `T-I: ${rawGesture.debug.thumbIndexDist} | ` +
+      `Gesture: ${(smoothedType || '').padEnd(6)} (raw: ${(rawGesture.type || '').padEnd(6)}) | ` +
+      `Scale: ${debug.handScale} | ` +
+      `Fingers: ${fingerStates} (${debug.extendedCount} ext) | ` +
+      `T-I: ${debug.thumbIndexDist} | ` +
       `Buffer: [${bufferStates}]`
     );
   }
-  
-  // Return gesture with smoothed type
+
   return {
     type: smoothedType,
     confidence: rawGesture.confidence,
     raw: rawGesture.type,
-    debug: rawGesture.debug,
+    debug: debug,
     tip: landmarks[rawGesture.type === 'POINT' ? 8 : (rawGesture.type === 'PINCH' ? 8 : 0)],
-    distance: rawGesture.type === 'PINCH' ? parseFloat(rawGesture.debug.thumbIndexDist) : 0
+    distance: rawGesture.type === 'PINCH' ? parseFloat(debug.thumbIndexDist) : 0
   };
 }
 
@@ -3023,7 +3579,6 @@ function drawHandLandmarks(results) {
   const ctx = canvas.getContext('2d');
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  // Mirror the drawing to match video's scaleX(-1)
   ctx.translate(canvas.width, 0);
   ctx.scale(-1, 1);
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
@@ -3032,6 +3587,39 @@ function drawHandLandmarks(results) {
     drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1});
   }
   ctx.restore();
+}
+
+// Draw hand tracking in AR: onto 3D hand plane canvas so it scales with camera zoom.
+function drawARHandOverlay(results) {
+  if (!scanViewerArMode) return;
+  var canvas = scanViewerArHandCanvas;
+  if (!canvas || !scanViewerArHandTexture) return;
+  var w = canvas.width;
+  var h = canvas.height;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.save();
+  ctx.clearRect(0, 0, w, h);
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    var landmarks = results.multiHandLandmarks[0];
+    if (typeof drawConnectors === 'function' && typeof drawLandmarks === 'function' && typeof HAND_CONNECTIONS !== 'undefined') {
+      drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: '#00d4ff', lineWidth: 2});
+      drawLandmarks(ctx, landmarks, {color: '#00ffcc', lineWidth: 1});
+    } else {
+      ctx.strokeStyle = '#00d4ff';
+      ctx.fillStyle = '#00ffcc';
+      ctx.lineWidth = 2;
+      landmarks.forEach(function(p) {
+        var x = p.x * w, y = p.y * h;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
+  }
+  ctx.restore();
+  scanViewerArHandTexture.needsUpdate = true;
 }
 
 function applyGestureToMesh(gesture, landmarks) {
@@ -3047,10 +3635,35 @@ function applyGestureToMesh(gesture, landmarks) {
     applyPinchingGesture(landmarks[8], landmarks[4]); // index and thumb
   } else if (type === 'OPEN') {
     // Open hand = zoom out
-    applyFlatHandGesture(landmarks);
+    !lock && applyFlatHandGesture(landmarks);
   } else if (type === 'FIST') {
     // Fist = zoom in
-    applyFistGesture(landmarks);
+    !lock && applyFistGesture(landmarks);
+  } else if (type === 'PEACE') {
+    // Peace sign toggles zoom lock (open hand / fist then won't change zoom until peace again)
+    if (!wasPeace) {
+      lock = !lock;
+      wasPeace = true;
+      updateGestureUI(lock ? '✌️ Zoom LOCKED' : '✌️ Zoom unlocked', lock ? 'info' : 'success');
+      return;
+    }
+  }else if (type === 'SCALE') {
+    // if (lastThumbIndexDistance !== null) {
+    //   const delta = thumbIndexDist - lastThumbIndexDistance;
+
+    //   modelScaleFactor += delta * SCALE_SENSITIVITY;
+    //   modelScaleFactor = Math.max(MIN_SCALE, Math.min(MAX_SCALE, modelScaleFactor));
+
+    //   if (threeObject) {
+    //     threeObject.scale.set(
+    //       modelScaleFactor,
+    //       modelScaleFactor,
+    //       modelScaleFactor
+    //     );
+    //   }
+    // }
+
+    // lastThumbIndexDistance = thumbIndexDist;
   }
 }
 
@@ -3135,6 +3748,9 @@ function deformMeshAtPoint(point, direction, strength, radius) {
   
   posAttr.needsUpdate = true;
   geometry.computeVertexNormals();
+  if (currentModel && gestureSculptMesh && gestureSculptMesh.geometry) {
+    currentModel.deformedGeometry = gestureSculptMesh.geometry.clone();
+  }
 }
 
 let lastPinchStrength = 0;
