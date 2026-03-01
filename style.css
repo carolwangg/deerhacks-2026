@@ -212,7 +212,7 @@
     .loader-sub { font-size: 16px; color: var(--dim); }
 
     /* Toast */
-    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
+    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; padding: 0; margin: 0; justify-content: center; align-items: center;}
     .toast { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--teal); padding: 116px; color: var(--text); animation: slideIn 0.3s ease; max-width: 300px; }
     .toast.error { border-left-color: var(--red); }
     .toast.info { border-left-color: var(--gold); }

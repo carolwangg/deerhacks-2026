@@ -3233,7 +3233,7 @@ function detectGestureRobust(landmarks) {
     
   }
 
-  if (horizontalStretchMode && indexExtended && ringExtended) {
+  if (scaleX && indexExtended && ringExtended) {
     const threeFingerDistance = getNormalizedDistance(
       8,   // index tip
       16,  // ring tip
@@ -3528,7 +3528,7 @@ function applyGestureToMesh(gesture, landmarks) {
   } else if (type === 'PEACE') {
     // Peace sign toggles zoom lock (open hand / fist then won't change zoom until peace again)
     if (!wasPeace) {
-      lock = !lock;
+      scaleX = !scaleX;
       wasPeace = true;
       updateGestureUI(lock ? '✌️ Zoom LOCKED' : '✌️ Zoom unlocked', lock ? 'info' : 'success');
       return;
