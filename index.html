@@ -109,6 +109,7 @@
     .btn-voice { background: rgba(255,215,0,0.1); border-color: var(--gold); color: var(--gold); flex: 1; }
     .btn-voice:hover { background: rgba(255,215,0,0.2); }
     .btn-voice.recording { background: rgba(255,68,85,0.2); border-color: var(--red); color: var(--red); animation: pulse 1s ease-in-out infinite; }
+    #btn-mic.recording { background: rgba(255,68,85,0.2); border-color: var(--red); color: var(--red); animation: pulse 1s ease-in-out infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
     .progress-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 12px; overflow: hidden; }
@@ -486,6 +487,7 @@
             <input type="text" id="voice-command-input" placeholder="e.g. make it bigger, rotate left, metal, red" class="voice-input"
               onkeydown="if(event.key==='Enter'){event.preventDefault();applyCommandFromInput();}"
               style="flex:1;min-width:180px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:10px 12px;color:var(--text);font-size:0.85rem;font-family:inherit;" />
+            <button class="btn btn-outline" id="btn-mic" type="button" onclick="toggleMicToTextBox()" title="Speak to fill the text box">🎙️ Mic</button>
             <button class="btn btn-voice" id="btn-voice" onclick="applyCommandFromInput()">Apply command</button>
           </div>
           <div class="voice-command-display" id="voice-display">
@@ -580,6 +582,7 @@ let BACKEND_URL = 'http://localhost:8000';
 // ============================================================
 let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
+let voiceMicListening = false, voiceRecognition = null;
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
 let threeSceneLib = null, threeCameraLib = null, threeRendererLib = null, threeObjectLib = null;
 let currentLibraryModelForWithYou = null;
@@ -2147,6 +2150,60 @@ function applyCommandFromInput() {
   if (!cmd) return toast('Type a command first.', 'info');
   input.value = '';
   applyVoiceCommand(cmd);
+}
+
+function toggleMicToTextBox() {
+  const input = document.getElementById('voice-command-input');
+  const btn = document.getElementById('btn-mic');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Speech recognition not supported in this browser.', 'error');
+
+  if (voiceMicListening && voiceRecognition) {
+    voiceRecognition.stop();
+    voiceRecognition = null;
+    voiceMicListening = false;
+    btn.textContent = '🎙️ Mic';
+    btn.classList.remove('recording');
+    if (input) input.placeholder = 'e.g. make it bigger, rotate left, metal, red';
+    return;
+  }
+
+  voiceRecognition = new SR();
+  voiceRecognition.continuous = false;
+  voiceRecognition.interimResults = false;
+  voiceRecognition.lang = 'en-US';
+  voiceRecognition.onresult = function(e) {
+    const transcript = (e.results[0] && e.results[0][0]) ? e.results[0][0].transcript : '';
+    if (input && transcript) input.value = transcript;
+  };
+  voiceRecognition.onend = function() {
+    if (voiceRecognition) {
+      voiceRecognition = null;
+      voiceMicListening = false;
+      if (btn) { btn.textContent = '🎙️ Mic'; btn.classList.remove('recording'); }
+      if (input) input.placeholder = 'e.g. make it bigger, rotate left, metal, red';
+    }
+  };
+  voiceRecognition.onerror = function(e) {
+    if (e.error !== 'aborted') toast('Could not recognize speech. Try again.', 'error');
+    voiceRecognition = null;
+    voiceMicListening = false;
+    if (btn) { btn.textContent = '🎙️ Mic'; btn.classList.remove('recording'); }
+    if (input) input.placeholder = 'e.g. make it bigger, rotate left, metal, red';
+  };
+
+  try {
+    voiceRecognition.start();
+    voiceMicListening = true;
+    btn.textContent = '🔴 Listening...';
+    btn.classList.add('recording');
+    if (input) input.placeholder = 'Listening... speak now';
+    toast('Listening — speak your command', 'success');
+  } catch (err) {
+    toast('Microphone access denied or failed.', 'error');
+    voiceMicListening = false;
+    voiceRecognition = null;
+  }
 }
 
 async function applyVoiceCommand(command) {
