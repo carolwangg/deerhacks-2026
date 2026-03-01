@@ -120,6 +120,9 @@
     /* 3D Viewer */
     #viewer-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     #three-canvas { width: 100%; height: 100%; display: block; }
+    #scan-viewer-ar-btn { position: absolute; top: 10px; right: 10px; z-index: 10; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: rgba(6,15,26,0.9); color: var(--teal); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: background 0.2s, border-color 0.2s; }
+    #scan-viewer-ar-btn:hover { background: rgba(0,212,255,0.15); border-color: var(--teal); }
+    #scan-viewer-ar-btn.ar-active { background: rgba(0,212,255,0.2); border-color: var(--green); color: var(--green); }
     .viewer-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; }
     #library-viewer-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     #library-three-canvas { width: 100%; height: 100%; display: block; }
@@ -490,6 +493,8 @@
         <div class="panel">
           <div class="panel-title">3D Model Viewer</div>
           <div id="viewer-container">
+            <button type="button" id="scan-viewer-ar-btn" title="Toggle AR view (camera with you)" onclick="toggleScanViewerArMode()">📷</button>
+            <video id="scan-ar-video" playsinline muted style="display:none;"></video>
             <canvas id="three-canvas"></canvas>
             <div class="viewer-placeholder" id="viewer-placeholder">
               <div class="icon">🔮</div>
@@ -587,14 +592,6 @@
 // ============================================================
 // CONFIG
 // ============================================================
-let CONFIG = {
-  geminiKey:         'AIzaSyCW1DJbLIfrP6ANTKdbUjSSwCSp1eTkA6U',
-  elevenLabsKey:     '',
-  // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
-  thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
-  // Meshy: API key for Image-to-3D. Get one at https://www.meshy.ai/settings/api (format msy_...). Test key: msy_dummy_api_key_for_test_mode_12345678
-  meshyApiKey: 'msy_czcf9aMuDWojpg5RZ8oww5QMVrMcR1pBtePt',
-};
 
 let DEBUG = true;
 let BACKEND_URL = 'http://localhost:8000';
@@ -605,6 +602,13 @@ let BACKEND_URL = 'http://localhost:8000';
 let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
+let scanViewerArMode = false;
+let scanViewerArStream = null;
+let scanViewerArVideoPlane = null;
+let scanViewerArVideoTexture = null;
+let scanViewerArSavedCameraPos = null;
+let scanViewerArSavedObjectPos = null;
+let scanViewerArSavedObjectScale = null;
 let threeSceneLib = null, threeCameraLib = null, threeRendererLib = null, threeObjectLib = null;
 let currentLibraryModelForWithYou = null;
 let libraryWithYouStream = null;
@@ -981,7 +985,7 @@ async function testApiKey() {
   // Cheap text-only ping to verify the key works before sending images
   log('Testing API key (text-only ping)...', 'info');
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${CONFIG.geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODELS[0]}:generateContent?key=${CONFIG.geminiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1289,12 +1293,30 @@ function buildGeminiJsonForMeshy(chainData) {
   };
 }
 
+/** Display a placeholder cube in the Scan 3D viewer (used when DEBUG is true instead of Meshy GLB). */
+function displayPlaceholderCubeInThree() {
+  if (!window.THREE) return Promise.reject(new Error('THREE not loaded'));
+  if (!threeScene) initThreeJS();
+  if (threeObject) {
+    threeScene.remove(threeObject);
+    threeObject = null;
+  }
+  const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+  const material = new THREE.MeshPhongMaterial({ color: 0x00d4ff, specular: 0x222222, shininess: 20 });
+  const mesh = new THREE.Mesh(geometry, material);
+  const group = new THREE.Group();
+  group.add(mesh);
+  threeScene.add(group);
+  threeObject = group;
+  return Promise.resolve(group);
+}
+
 async function generateModelWithMeshy() {
   closeCamera();
   const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
   if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
   if (!CONFIG.geminiKey) return toast('Set CONFIG.geminiKey for the Gemini pipeline.', 'info');
-  if (!CONFIG.meshyApiKey) return toast('Set CONFIG.meshyApiKey (https://www.meshy.ai/settings/api).', 'info');
+  if (!DEBUG && !CONFIG.meshyApiKey) return toast('Set CONFIG.meshyApiKey (https://www.meshy.ai/settings/api).', 'info');
 
   document.getElementById('ai-chain-panel').style.display = 'block';
   document.getElementById('ai-chain-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1317,6 +1339,31 @@ async function generateModelWithMeshy() {
   const geminiJson = buildGeminiJsonForMeshy(chainData);
   const promptForMeshy = JSON.stringify(geminiJson);
   logHTML('Gemini JSON for Meshy (no improvement_instructions): ' + promptForMeshy.slice(0, 200) + (promptForMeshy.length > 200 ? '...' : ''), 'info');
+
+  if (DEBUG) {
+    updateLoading('Loading placeholder cube (DEBUG)...');
+    logHTML('DEBUG: using placeholder cube instead of Meshy.', 'info');
+    try {
+      await displayPlaceholderCubeInThree();
+      document.getElementById('viewer-placeholder').style.display = 'none';
+      document.getElementById('model-info').classList.add('visible');
+      document.getElementById('save-btn').disabled = false;
+      currentModel = {
+        id: 'meshy_placeholder_' + Date.now(),
+        name: (chainData.step2 && chainData.step2.object_type) || (chainData.step1 && chainData.step1.object_name) || 'Placeholder (DEBUG)',
+        params: {},
+        gemini: chainData.step2 || chainData.step1 || {},
+      };
+    } catch (e) {
+      hideLoading();
+      toast('Placeholder failed: ' + (e && e.message), 'error');
+      return;
+    }
+    hideLoading();
+    toast('Placeholder cube displayed (DEBUG mode — no Meshy call).', 'success');
+    logHTML('Placeholder cube loaded.', 'success');
+    return;
+  }
 
   updateLoading('Sending to Meshy Text-to-3D (Gemini JSON, no image; model 6)...');
   logHTML('Meshy: creating Text-to-3D task (Meshy-6, prompt from Gemini)...', 'info');
@@ -1517,18 +1564,108 @@ function initThreeJS() {
     prevX = e.clientX; prevY = e.clientY;
   });
   canvas.addEventListener('mouseup',   () => isDragging = false);
-  canvas.addEventListener('wheel',     e  => { threeCamera.position.z = Math.max(1.5, Math.min(8, threeCamera.position.z + e.deltaY * 0.005)); });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    targetCameraZoom += e.deltaY * 0.005;
+    targetCameraZoom = Math.max(2, Math.min(10, targetCameraZoom));
+  }, { passive: false });
 
   (function animate() {
     requestAnimationFrame(animate);
     if (threeObject) threeObject.rotation.y += 0.005;
-    updateCameraZoom();  // Smooth camera zoom during gesture
+    if (scanViewerArMode) {
+      if (threeCamera) {
+        threeCamera.position.set(0, 0, 0);
+        threeCamera.lookAt(0, 0, -1);
+      }
+      const arVideo = document.getElementById('scan-ar-video');
+      if (arVideo && arVideo.readyState >= 2 && scanViewerArVideoTexture) scanViewerArVideoTexture.needsUpdate = true;
+    } else {
+      updateCameraZoom();
+    }
     if (threeRenderer && threeScene && threeCamera) threeRenderer.render(threeScene, threeCamera);
   })();
 }
 
+async function toggleScanViewerArMode() {
+  const btn = document.getElementById('scan-viewer-ar-btn');
+  const video = document.getElementById('scan-ar-video');
+  if (!threeScene || !threeCamera) return;
+
+  if (scanViewerArMode) {
+    scanViewerArMode = false;
+    btn.classList.remove('ar-active');
+    btn.title = 'Show AR view (camera with you)';
+    if (scanViewerArStream) {
+      scanViewerArStream.getTracks().forEach(t => t.stop());
+      scanViewerArStream = null;
+    }
+    if (scanViewerArVideoPlane && threeScene.children.includes(scanViewerArVideoPlane)) {
+      threeScene.remove(scanViewerArVideoPlane);
+      if (scanViewerArVideoPlane.geometry) scanViewerArVideoPlane.geometry.dispose();
+      if (scanViewerArVideoPlane.material && scanViewerArVideoPlane.material.map) scanViewerArVideoPlane.material.map.dispose();
+      scanViewerArVideoPlane.material.dispose();
+      scanViewerArVideoPlane = null;
+    }
+    scanViewerArVideoTexture = null;
+    if (video) video.srcObject = null;
+    if (scanViewerArSavedCameraPos) threeCamera.position.copy(scanViewerArSavedCameraPos);
+    threeCamera.lookAt(0, 0, 0);
+    if (threeObject && scanViewerArSavedObjectPos) threeObject.position.copy(scanViewerArSavedObjectPos);
+    if (threeObject && scanViewerArSavedObjectScale) threeObject.scale.copy(scanViewerArSavedObjectScale);
+    return;
+  }
+
+  if (!threeObject) {
+    if (typeof toast === 'function') toast('Generate or load a model first.', 'info');
+    return;
+  }
+  try {
+    scanViewerArStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    if (!video) return;
+    video.srcObject = scanViewerArStream;
+    await video.play();
+  } catch (e) {
+    if (typeof toast === 'function') toast('Camera access denied.', 'error');
+    return;
+  }
+
+  scanViewerArSavedCameraPos = threeCamera.position.clone();
+  if (threeObject) {
+    scanViewerArSavedObjectPos = threeObject.position.clone();
+    scanViewerArSavedObjectScale = threeObject.scale.clone();
+  }
+
+  scanViewerArVideoTexture = new THREE.VideoTexture(video);
+  scanViewerArVideoTexture.minFilter = THREE.LinearFilter;
+  scanViewerArVideoTexture.magFilter = THREE.LinearFilter;
+  const container = document.getElementById('viewer-container');
+  const aspect = container && container.clientHeight ? container.clientWidth / container.clientHeight : 16 / 9;
+  const bgGeo = new THREE.PlaneGeometry(2 * Math.max(aspect, 1), 2 * Math.max(1 / aspect, 1));
+  const bgMat = new THREE.MeshBasicMaterial({ map: scanViewerArVideoTexture, depthWrite: false });
+  scanViewerArVideoPlane = new THREE.Mesh(bgGeo, bgMat);
+  scanViewerArVideoPlane.position.z = -1.5;
+  threeScene.add(scanViewerArVideoPlane);
+
+  threeCamera.position.set(0, 0, 0);
+  threeCamera.lookAt(0, 0, -1);
+  if (threeObject) {
+    threeObject.position.set(0, -0.1, -0.7);
+    threeObject.scale.setScalar(0.1);
+  }
+
+  scanViewerArMode = true;
+  btn.classList.add('ar-active');
+  btn.title = 'Hide AR view (3D only)';
+}
+
 function renderThreeModel(params, geminiData) {
   if (!threeScene) initThreeJS();
+  // In gesture mode, preserve the deformed mesh so gesture sculpt stays in sync with "the model"
+  if (inputMode === 'gesture' && gestureSculptMesh && threeObject && threeScene.children.includes(threeObject)) {
+    const firstChild = threeObject.children[0];
+    if (firstChild === gestureSculptMesh) return;
+  }
   if (threeObject) threeScene.remove(threeObject);
   const group = new THREE.Group();
 
@@ -1537,30 +1674,35 @@ function renderThreeModel(params, geminiData) {
     const t    = params.primary_geometry?.type || 'CylinderGeometry';
     let args = params.primary_geometry?.args || [0.4, 0.4, 1.5, 32];
 
-    // For gesture mode, use high-res sphere for smooth deformation
-    if (inputMode === 'gesture' && t === 'SphereGeometry') {
-      args = [0.7, 64, 64];  // 64x64 subdivisions for detailed sculpting
+    if (inputMode === 'gesture' && currentModel && currentModel.deformedGeometry) {
+      geo = currentModel.deformedGeometry.clone();
+    } else {
+      // For gesture mode, use high-res sphere for smooth deformation
+      if (inputMode === 'gesture' && t === 'SphereGeometry') {
+        args = [0.7, 64, 64];  // 64x64 subdivisions for detailed sculpting
+      }
+      if      (t === 'CylinderGeometry') geo = new THREE.CylinderGeometry(...args);
+      else if (t === 'BoxGeometry')      geo = new THREE.BoxGeometry(...args);
+      else if (t === 'SphereGeometry')   geo = new THREE.SphereGeometry(...args);
+      else if (t === 'ConeGeometry')     geo = new THREE.ConeGeometry(...args);
+      else if (t === 'TorusGeometry')    geo = new THREE.TorusGeometry(...args);
+      else                               geo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
+      // Convert to BufferGeometry if needed for vertex manipulation
+      if (!(geo instanceof THREE.BufferGeometry)) {
+        const bg = new THREE.BufferGeometry();
+        bg.fromGeometry(geo);
+        geo = bg;
+      }
     }
 
-    if      (t === 'CylinderGeometry') geo = new THREE.CylinderGeometry(...args);
-    else if (t === 'BoxGeometry')      geo = new THREE.BoxGeometry(...args);
-    else if (t === 'SphereGeometry')   geo = new THREE.SphereGeometry(...args);
-    else if (t === 'ConeGeometry')     geo = new THREE.ConeGeometry(...args);
-    else if (t === 'TorusGeometry')    geo = new THREE.TorusGeometry(...args);
-    else                               geo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32);
-
-    // Convert to BufferGeometry if needed for vertex manipulation
-    if (!(geo instanceof THREE.BufferGeometry)) {
-      const bg = new THREE.BufferGeometry();
-      bg.fromGeometry(geo);
-      geo = bg;
-    }
-
-    // Store original positions for deformation
+    // Store original positions for deformation (from current geometry so further deformations are additive)
     const posAttr = geo.getAttribute('position');
     if (posAttr) {
-      originalPositions = new Float32Array(posAttr.array);
-      geo.setAttribute('position', new THREE.BufferAttribute(posAttr.array.slice(), 3));
+      originalPositions = new Float32Array(posAttr.array.length);
+      originalPositions.set(posAttr.array);
+      if (!currentModel || !currentModel.deformedGeometry) {
+        geo.setAttribute('position', new THREE.BufferAttribute(posAttr.array.slice(), 3));
+      }
       geo.computeVertexNormals();
     }
 
@@ -1935,19 +2077,21 @@ function initLibraryWithYouViewer() {
   if (!canvas || !container || !window.THREE || threeRendererWithYou) return;
 
   threeRendererWithYou = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  threeRendererWithYou.setSize(container.clientWidth, container.clientHeight);
+  const w = Math.max(1, container.clientWidth || 640);
+  const h = Math.max(1, container.clientHeight || 480);
+  threeRendererWithYou.setSize(w, h);
   threeRendererWithYou.setPixelRatio(Math.min(2, window.devicePixelRatio));
   threeRendererWithYou.setClearColor(0x000000, 1);
 
   threeSceneWithYou = new THREE.Scene();
-  threeCameraWithYou = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+  threeCameraWithYou = new THREE.PerspectiveCamera(60, w / h, 0.1, 100);
   threeCameraWithYou.position.set(0, 0, 0);
   threeCameraWithYou.lookAt(0, 0, -1);
 
   videoTextureWithYou = new THREE.VideoTexture(video);
   videoTextureWithYou.minFilter = THREE.LinearFilter;
   videoTextureWithYou.magFilter = THREE.LinearFilter;
-  const bgGeo = new THREE.PlaneGeometry(2, 2 * (container.clientHeight / container.clientWidth));
+  const bgGeo = new THREE.PlaneGeometry(2, 2 * (h / w));
   const bgMat = new THREE.MeshBasicMaterial({ map: videoTextureWithYou, depthWrite: false });
   const bgMesh = new THREE.Mesh(bgGeo, bgMat);
   bgMesh.position.z = -1.5;
@@ -2068,15 +2212,24 @@ function loadModelIntoLibraryWithYouScene(url, format, onLoad) {
     modelGroupWithYou = null;
   }
   format = format || (url && url.toLowerCase().match(/\.(stl|obj|glb|gltf)(\?|$)/) && RegExp.$1) || 'stl';
-  const onLoaded = (group) => {
+    const onLoaded = (group) => {
     if (!(group instanceof THREE.Group)) group = new THREE.Group().add(group);
-    group.scale.setScalar(0.15);
+    group.scale.setScalar(0.001);
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(group);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    group.position.sub(center);
     group.position.set(0, -0.1, -0.7);
     threeSceneWithYou.add(group);
     modelGroupWithYou = group;
     if (onLoad) onLoad();
   };
-  const onError = (err) => console.warn('Library WithYou model load error:', err);
+  const onError = (err) => {
+    console.warn('Library WithYou model load error:', err);
+    if (typeof toast === 'function') toast('Model load failed (check console). Camera only.', 'error');
+    if (onLoad) onLoad();
+  };
   if (format === 'stl' && window.THREE.STLLoader) {
     const loader = new THREE.STLLoader();
     loader.load(url, (geometry) => {
@@ -2780,10 +2933,13 @@ function onGestureResults(results) {
 // Temporal smoothing state
 let lastGestureState = 'none';
 let gestureConfidenceBuffer = [];
+let lock = false;
+let wasPeace = false;
+
 // Gesture thresholds (normalized by hand scale)
 const SMOOTHING_FRAMES = 5;
 const EXTENSION_THRESHOLD = 0.12;       // how far a finger tip must be beyond its MCP to count as extended
-const PINCH_DISTANCE_THRESHOLD = 0.10;  // thumb‑index separation for pinch
+const PINCH_DISTANCE_THRESHOLD = 0.3;  // thumb‑index separation for pinch
 const POINT_DISTANCE_THRESHOLD = 0.10;  // minimum thumb‑index separation for point
 const OPEN_DISTANCE_THRESHOLD = 0.25;   // thumb‑index separation for open hand
 
@@ -2846,7 +3002,8 @@ function getNormalizedDistance(idx1, idx2, landmarks, handScale) {
  * 2. PINCH: Thumb + Index close, others folded
  * 3. POINT: Index extended, others folded, thumb away
  * 4. OPEN: All fingers extended, well separated
- * 5. NONE: No clear gesture
+ * 5. PEACE: LOCK THE THING
+ * 6. NONE: No clear gesture
  */
 function detectGestureRobust(landmarks) {
   const handScale = getHandScale(landmarks);
@@ -2884,9 +3041,9 @@ function detectGestureRobust(landmarks) {
   };
   
   // ===== GESTURE CLASSIFICATION (Priority-based, mutually exclusive) =====
-  
   // 1. FIST - ALL fingers folded (none extended)
-  if (extendedCount === 0) {
+  if (extendedCount < 2) {
+    wasPeace = false;
     return { type: 'FIST', confidence: 0.95, debug: debugInfo };
   }
   
@@ -2895,8 +3052,11 @@ function detectGestureRobust(landmarks) {
   // slight bending during a pinch may fail the extension test.  Instead
   // we look only at the normalized separation and ensure the other three
   // fingers are folded.
+  console.log("thumbIndexDist", thumbIndexDist);
   if (thumbIndexDist < PINCH_DISTANCE_THRESHOLD) {
+    
     if (!middleExtended && !ringExtended && !pinkyExtended) {
+      wasPeace = false;
       return { type: 'PINCH', confidence: 0.95, debug: debugInfo };
     }
   }
@@ -2904,20 +3064,31 @@ function detectGestureRobust(landmarks) {
   // 3. POINT - Index extended, thumb far, all others folded
   // Must check: index extended AND other fingers NOT extended AND thumb not too close
   if (indexExtended && thumbIndexDist > POINT_DISTANCE_THRESHOLD) {
+    
     if (!middleExtended && !ringExtended && !pinkyExtended) {
       // Could be POINT even if thumb not extended (e.g., relaxed thumb)
+      wasPeace = false;
       return { type: 'POINT', confidence: 0.95, debug: debugInfo };
     }
   }
   
   // 4. OPEN HAND - ALL 5 fingers extended and well separated
   if (thumbExtended && indexExtended && middleExtended && ringExtended && pinkyExtended) {
+   
     // Extra check: thumb and index must be far apart (> 0.25)
     if (thumbIndexDist > OPEN_DISTANCE_THRESHOLD) {
+      wasPeace = false;
       return { type: 'OPEN', confidence: 0.95, debug: debugInfo };
     }
   }
+
+  // 4. OPEN HAND - ALL 5 fingers extended and well separated
+  if (indexExtended && middleExtended && !ringExtended && !pinkyExtended) {
+    // Extra check: thumb and index must be far apart (> 0.25)
+    return { type: 'PEACE', confidence: 0.95, debug: debugInfo };
+  }
   
+  wasPeace = false;
   // No clear gesture detected
   return { type: 'none', confidence: 0.0, debug: debugInfo };
 }
@@ -2984,7 +3155,8 @@ function detectGesture(landmarks) {
   
   // Log debug info frequently for debugging
   gestureDebugCounter++;
-  
+  console.log("debugInfo", rawGesture.debug);
+  console.log("confidence", rawGesture.confidence);
   // Log to console more frequently (every 3rd frame = ~10Hz at 30FPS)
   if (gestureDebugCounter % 3 === 0) {
     const fingerStates = `T:${rawGesture.debug.thumbExtended ? '✓' : '✗'} I:${rawGesture.debug.indexExtended ? '✓' : '✗'} M:${rawGesture.debug.middleExtended ? '✓' : '✗'} R:${rawGesture.debug.ringExtended ? '✓' : '✗'} P:${rawGesture.debug.pinkyExtended ? '✓' : '✗'}`;
@@ -3047,10 +3219,18 @@ function applyGestureToMesh(gesture, landmarks) {
     applyPinchingGesture(landmarks[8], landmarks[4]); // index and thumb
   } else if (type === 'OPEN') {
     // Open hand = zoom out
-    applyFlatHandGesture(landmarks);
+    !lock && applyFlatHandGesture(landmarks);
   } else if (type === 'FIST') {
     // Fist = zoom in
-    applyFistGesture(landmarks);
+    !lock && applyFistGesture(landmarks);
+  } else if (type === 'PEACE') {
+    // Peace sign toggles zoom lock (open hand / fist then won't change zoom until peace again)
+    if (!wasPeace) {
+      lock = !lock;
+      wasPeace = true;
+      updateGestureUI(lock ? '✌️ Zoom LOCKED' : '✌️ Zoom unlocked', lock ? 'info' : 'success');
+      return;
+    }
   }
 }
 
@@ -3135,6 +3315,9 @@ function deformMeshAtPoint(point, direction, strength, radius) {
   
   posAttr.needsUpdate = true;
   geometry.computeVertexNormals();
+  if (currentModel && gestureSculptMesh && gestureSculptMesh.geometry) {
+    currentModel.deformedGeometry = gestureSculptMesh.geometry.clone();
+  }
 }
 
 let lastPinchStrength = 0;
