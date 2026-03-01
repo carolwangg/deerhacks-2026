@@ -177,7 +177,7 @@
             </div>
           </div>
 
-          <div class="progress-bar" style="margin-top:16px"><div class="progress-fill" id="capture-progress"></div></div>
+          <div class="progress-bar" id="progress-bar" style="margin-top:16px"><div class="progress-fill" id="capture-progress"></div></div>
           <div id="capture-count-bar" style="font-family:'Orbitron',monospace;font-size:14px;color:var(--teal);text-align:center;margin-top:6px;letter-spacing:2px">0 / 5 CAPTURED</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn btn-generate" id="btn-generate-meshy" onclick="generateModelWithMeshy()" disabled>🎨 Generate 3D model</button>
@@ -390,7 +390,7 @@ function switchFullVideoTab() {
   switchInputTab('fullvideo');
   const countEl = document.getElementById('capture-count-bar');
   countEl.style.display = 'none';
-  const progBar = document.getElementById('capture-progress');
+  const progBar = document.getElementById('progress-bar');
   progBar.style.display = 'none';
 }
 
@@ -398,7 +398,7 @@ function switchGestureSpotTab() {
   switchInputTab('gesture')
   const countEl = document.getElementById('capture-count-bar');
   countEl.style.display = 'none';
-  const progBar = document.getElementById('capture-progress');
+  const progBar = document.getElementById('progress-bar');
   progBar.style.display = 'none';
 }
 
@@ -2594,7 +2594,7 @@ let fullVideoFile = null; // for "Upload Full Video" mode: the file to send enti
 function switchInputTab(mode) {
   const countEl = document.getElementById('capture-count-bar');
   countEl.style.display = 'flex';
-  const progBar = document.getElementById('capture-progress');
+  const progBar = document.getElementById('progress-bar');
   progBar.style.display = 'flex';
   inputMode = mode;
   // Update tab styles
