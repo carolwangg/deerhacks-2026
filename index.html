@@ -254,6 +254,7 @@
     .scrubber-time { font-family: 'Orbitron', monospace; font-size: 0.55rem; color: var(--dim); white-space: nowrap; }
     .btn-grab { background: rgba(0,255,204,0.1); border-color: var(--green); color: var(--green); font-size: 0.58rem; padding: 7px 14px; }
     .btn-grab:hover { background: rgba(0,255,204,0.2); }
+    #btn-voice-toggle.active { background: linear-gradient(135deg, rgba(0,255,204,0.2), rgba(0,212,255,0.15)); border-color: var(--green); color: var(--green); }
 
     /* Upload thumb strip badge */
     .thumb .thumb-badge { position: absolute; bottom: 2px; right: 2px; font-size: 0.45rem; font-family: 'Orbitron', monospace; background: rgba(0,212,255,0.8); color: #000; padding: 1px 4px; border-radius: 2px; }
@@ -267,6 +268,7 @@
   <header>
     <div class="logo">FORGE<span>AI</span></div>
     <nav>
+      <button class="nav-btn" id="btn-settings" onclick="showSettings()" style="font-size:0.6rem;">⚙️</button>
       <button class="nav-btn active" onclick="showPage('home')">Home</button>
       <button class="nav-btn" onclick="showPage('scan')">Scan</button>
       <button class="nav-btn" onclick="showPage('library')">Library</button>
@@ -396,6 +398,7 @@
           <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" id="capture-progress"></div></div>
           <div id="capture-count-bar" style="font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--teal);text-align:center;margin-top:6px;letter-spacing:2px">0 / 5 CAPTURED</div>
           <div class="btn-row" style="margin-top:10px">
+            <button class="btn btn-generate" id="btn-voice-toggle" onclick="toggleVoiceEnabled()" style="flex:0 0 auto;">🔇 Voice Off</button>
             <button class="btn btn-generate" id="btn-generate" onclick="generateModel()" disabled>⚡ Run AI Chain + Generate 3D</button>
           </div>
         </div>
@@ -535,13 +538,48 @@
 <!-- TOAST -->
 <div class="toast-container" id="toast-container"></div>
 
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:420px;width:90%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-family:'Orbitron',monospace;font-size:0.9rem;color:var(--teal);letter-spacing:2px;">⚙️ SETTINGS</span>
+      <button onclick="hideSettings()" style="background:none;border:none;color:var(--dim);font-size:1.2rem;cursor:pointer;">×</button>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:0.7rem;color:var(--dim);margin-bottom:6px;">ElevenLabs API Key</label>
+      <input type="password" id="elevenlabs-key-input" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;color:var(--text);font-size:0.85rem;" placeholder="xi-api-key from elevenlabs.io" />
+      <div style="font-size:0.65rem;color:var(--dim);margin-top:4px;">Get free key at <a href="https://elevenlabs.io" target="_blank" style="color:var(--teal)">elevenlabs.io</a></div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:0.7rem;color:var(--dim);margin-bottom:6px;">Voice</label>
+      <select id="elevenlabs-voice-input" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;color:var(--text);font-size:0.85rem;">
+        <option value="pNInz6obpgDQGcFmaJgB">Rachel</option>
+        <option value="CwhRBWXzGAHq8TQ4Fs17">Sam</option>
+        <option value="AZnzlk1XvdvUeBnObGGY">Arnold</option>
+        <option value="iP95pNlp0C4gJ4zr5FJu">Charlotte</option>
+        <option value="FGY2WhTYpP7hRQF8MRob">Ella</option>
+        <option value="XB0fDUnXU5powFX3DBQ8">Thomas</option>
+        <option value="N2lVQ1ZmGCgXdBMYjzIt">Grace</option>
+      </select>
+    </div>
+    <button onclick="saveSettings()" class="cta-primary" style="width:100%;padding:12px;">💾 Save Settings</button>
+    <button onclick="testVoice()" class="btn btn-outline" style="width:100%;margin-top:8px;">🔊 Test Voice</button>
+  </div>
+</div>
+
+<style>
+#settings-modal { backdrop-filter: blur(4px); }
+#settings-modal input:focus, #settings-modal select:focus { outline:none; border-color:var(--teal); }
+</style>
+
 <script>
 // ============================================================
 // CONFIG
 // ============================================================
 let CONFIG = {
-  geminiKey:         'AIzaSyAd4M93izXSXwSJF6WAVvSF1HyNusHECy4',
-  elevenLabsKey:     '',
+  geminiKey:         'AIzaSyAGC6rv-6-6cWVBFULdH94p4opdVXhpAxc',
+  elevenLabsKey:     'sk_5ed3bbb690c1e914cfe0bc4d1e01150fc82db8a103a95033', // Get from https://elevenlabs.io - paste your API key here!
+  elevenLabsVoice:   'pNInz6obpgDQGcFmaJgB', // Default voice ID
   // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
   thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
 };
@@ -550,8 +588,219 @@ let DEBUG = true;
 let BACKEND_URL = 'http://localhost:8000';
 
 // ============================================================
-// STATE
-// ============================================================
+  // ELEVENLABS TEXT-TO-SPEECH - AI VOICE NARRATOR
+  // ============================================================
+  let elevenLabsAudio = null;
+  let voiceQueue = [];
+  let isSpeaking = false;
+  // Enable voice by default if key exists in localStorage or CONFIG
+  let voiceEnabled = localStorage.getItem('fg_voice_enabled') === 'true' || 
+                     !!localStorage.getItem('fg_elevenlabs_key') || 
+                     (!!CONFIG.elevenLabsKey && CONFIG.elevenLabsKey.startsWith('sk_'));
+
+  // Load saved API key (localStorage takes priority over hardcoded CONFIG)
+  if (localStorage.getItem('fg_elevenlabs_key')) {
+    CONFIG.elevenLabsKey = localStorage.getItem('fg_elevenlabs_key');
+  }
+  if (localStorage.getItem('fg_elevenlabs_voice')) {
+    CONFIG.elevenLabsVoice = localStorage.getItem('fg_elevenlabs_voice');
+  }
+  
+  console.log('[Init] voiceEnabled:', voiceEnabled, 'hasKey:', !!CONFIG.elevenLabsKey);
+
+  function processQueue() {
+    if (isSpeaking || voiceQueue.length === 0) return;
+    isSpeaking = true;
+    const next = voiceQueue.shift();
+    speakImmediately(next.text, next.priority);
+  }
+
+  function speak(text, priority = false) {
+    console.log('[ElevenLabs] Queueing:', text.substring(0,50));
+    // If priority, clear queue and add this message at front
+    if (priority) {
+      voiceQueue = [];
+    }
+    voiceQueue.push({ text, priority });
+    processQueue();
+  }
+
+  async function speakImmediately(text, priority = false) {
+    if (!voiceEnabled) { isSpeaking = false; processQueue(); return; }
+    if (!CONFIG.elevenLabsKey) { isSpeaking = false; processQueue(); return; }
+    if (!text) { isSpeaking = false; processQueue(); return; }
+    
+    // Stop any current audio
+    if (elevenLabsAudio) {
+      elevenLabsAudio.pause();
+      elevenLabsAudio = null;
+    }
+    
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${CONFIG.elevenLabsVoice}?optimize_streaming_latency=0`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': CONFIG.elevenLabsKey
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: 'eleven_multilingual_v2'
+        })
+      });
+      
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[ElevenLabs] API error:', response.status, errText);
+        isSpeaking = false;
+        processQueue();
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      elevenLabsAudio = new Audio(url);
+      
+      elevenLabsAudio.onended = () => {
+        isSpeaking = false;
+        processQueue();
+      };
+      elevenLabsAudio.onerror = () => {
+        isSpeaking = false;
+        processQueue();
+      };
+      
+      try {
+        await elevenLabsAudio.play();
+      } catch (playErr) {
+        console.error('[ElevenLabs] Autoplay blocked:', playErr);
+        isSpeaking = false;
+        processQueue();
+      }
+    } catch (e) {
+      console.error('[ElevenLabs] Speak error:', e);
+      isSpeaking = false;
+      processQueue();
+    }
+  }
+
+function stopSpeaking() {
+  if (elevenLabsAudio) {
+    elevenLabsAudio.pause();
+    elevenLabsAudio = null;
+  }
+}
+
+function toggleVoiceEnabled() {
+  if (!CONFIG.elevenLabsKey) {
+    showSettings();
+    toast('Please add your ElevenLabs API key first!', 'info');
+    return;
+  }
+  voiceEnabled = !voiceEnabled;
+  localStorage.setItem('fg_voice_enabled', voiceEnabled);
+  updateVoiceToggleUI();
+  if (voiceEnabled) {
+    speak('Voice narration enabled. I will guide you through the scanning process.', true);
+  }
+}
+
+function updateVoiceToggleUI() {
+  const btn = document.getElementById('btn-voice-toggle');
+  if (btn) {
+    btn.textContent = voiceEnabled ? '🔊 Voice On' : '🔇 Voice Off';
+    btn.classList.toggle('active', voiceEnabled);
+  }
+}
+
+// Narrator messages during scanning
+const narrator = {
+  start: () => speak('Analyzing your object. Please wait.'),
+  complete: (name, objectType, brand, material, color) => {
+    const desc = [];
+    if (objectType && objectType !== 'Unknown') desc.push(objectType);
+    if (brand && brand !== 'Unknown') desc.push(brand);
+    if (material && material !== 'Unknown') desc.push(material);
+    if (color && color !== 'Unknown') desc.push(color);
+    speak(`3D model ready! It's a ${desc.length > 0 ? desc.join(' — ') : name}. Use voice commands to modify it.`);
+  },
+  error: (msg) => speak(`Analysis failed. ${msg}`, true),
+  command: (cmd) => speak(cmd),
+};
+
+async function testElevenLabs() {
+  if (!CONFIG.elevenLabsKey) {
+    toast('Add your ElevenLabs API key in CONFIG to enable voice narration!', 'info');
+    return false;
+  }
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/voices`, {
+      headers: { 'xi-api-key': CONFIG.elevenLabsKey }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      console.log('ElevenLabs connected! Available voices:', data.voices?.slice(0,5).map(v => v.name).join(', '));
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+function showSettings() {
+  document.getElementById('elevenlabs-key-input').value = CONFIG.elevenLabsKey || '';
+  document.getElementById('elevenlabs-voice-input').value = CONFIG.elevenLabsVoice || 'rachel';
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+
+function hideSettings() {
+  document.getElementById('settings-modal').style.display = 'none';
+}
+
+function saveSettings() {
+  const key = document.getElementById('elevenlabs-key-input').value.trim();
+  const voice = document.getElementById('elevenlabs-voice-input').value;
+  
+  if (!key) {
+    toast('Please enter an API key!', 'error');
+    return;
+  }
+  
+  // Clear old settings first
+  localStorage.removeItem('fg_elevenlabs_key');
+  localStorage.removeItem('fg_elevenlabs_voice');
+  localStorage.removeItem('fg_voice_enabled');
+  
+  // Save new settings
+  CONFIG.elevenLabsKey = key;
+  CONFIG.elevenLabsVoice = voice;
+  localStorage.setItem('fg_elevenlabs_key', key);
+  localStorage.setItem('fg_elevenlabs_voice', voice);
+  voiceEnabled = true;
+  localStorage.setItem('fg_voice_enabled', 'true');
+  
+  hideSettings();
+  updateVoiceToggleUI();
+  toast('Settings saved! Voice enabled.', 'success');
+  logHTML('ElevenLabs settings updated with new key', 'success');
+}
+
+function testVoice() {
+  const key = document.getElementById('elevenlabs-key-input').value.trim();
+  const voice = document.getElementById('elevenlabs-voice-input').value;
+  
+  if (!key) {
+    toast('Enter API key first!', 'error');
+    return;
+  }
+  
+  // Temporarily set for testing
+  CONFIG.elevenLabsKey = key;
+  CONFIG.elevenLabsVoice = voice;
+  
+  speak('Hello! This is a test of the ElevenLabs voice narrator. ForgeAI is ready to scan your world!', true);
+  toast('Playing test voice...', 'info');
+}
 let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
@@ -960,7 +1209,7 @@ Keys required: detection (object_name, confidence_score 0-1, confidence_reason, 
   chainResults.step2 = s2;
   chainResults.step3 = s3;
 
-  // ── Render Step 1 ──
+// ── Render Step 1 ──
   const conf1Pct = Math.round((s1.confidence_score || 0) * 100);
   const conf1Class = conf1Pct >= 75 ? 'high' : conf1Pct >= 50 ? 'medium' : 'low';
   document.getElementById('chain-content-1').innerHTML = `
@@ -1078,6 +1327,7 @@ async function generateModel() {
 
   showLoading('Starting AI Analysis Chain...');
   log('Starting 3-step Gemini analysis chain...', 'info');
+  narrator.start();
 
   // ── Test key first (cheap text-only call) then compress images ──
   try {
@@ -1139,12 +1389,14 @@ async function generateModel() {
     document.getElementById('save-btn').disabled = false;
 
     hideLoading();
+    narrator.complete(name);
     toast('3D model generated from AI chain! Use voice to modify it.', 'success');
     log('Model rendered successfully from 3-step chain.', 'success');
 
   } catch (e) {
     hideLoading();
     log('Chain failed: ' + e.message, 'error');
+    narrator.error(e.message);
     toast('Generation failed: ' + e.message, 'error');
   }
 }
@@ -1790,6 +2042,9 @@ function applyLocalCommand(command) {
 
   document.getElementById('voice-display').innerHTML = `<span style="color:var(--teal)">✓ "${command}"</span> — ${message}`;
   logHTML('Voice: ' + message, 'success');
+  if (message && message !== 'Try: "bigger", "smaller", "rotate left", "red", "metal", "reset"') {
+    narrator.command(message);
+  }
 }
 
 // ============================================================
@@ -2191,6 +2446,15 @@ function updateCaptureUI() {
 logHTML('ForgeAI v2.0 loaded — 3-Step Gemini Chain enabled.', 'info');
 _bindPhotoDrop();
 if (user) document.getElementById('auth-btn').textContent = '👤 ' + user.name;
+updateVoiceToggleUI();
+if (CONFIG.elevenLabsKey) {
+  testElevenLabs().then(ok => {
+    if (ok) {
+      logHTML('ElevenLabs TTS connected! Voice narration ready.', 'success');
+      if (voiceEnabled) speak('ForgeAI ready. Enable voice to hear narration during scanning.', true);
+    }
+  });
+}
 </script>
 </body>
 </html>
