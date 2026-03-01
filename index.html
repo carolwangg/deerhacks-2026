@@ -9,6 +9,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469240/pose.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -118,6 +120,9 @@
     .viewer-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; }
     #library-viewer-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     #library-three-canvas { width: 100%; height: 100%; display: block; }
+    .library-withyou-box { position: relative; width: 100%; max-width: 640px; aspect-ratio: 4/3; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    #library-withyou-canvas { width: 100%; height: 100%; display: block; object-fit: cover; }
+    #library-withyou-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; pointer-events: none; }
     .viewer-placeholder .icon { font-size: 2.5rem; margin-bottom: 8px; }
 
     /* Model info */
@@ -397,6 +402,7 @@
           <div id="capture-count-bar" style="font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--teal);text-align:center;margin-top:6px;letter-spacing:2px">0 / 5 CAPTURED</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn btn-generate" id="btn-generate" onclick="generateModel()" disabled>⚡ Run AI Chain + Generate 3D</button>
+            <button class="btn btn-generate" id="btn-generate-meshy" onclick="generateModelWithMeshy()" disabled>🎨 Generate model (with Meshy)</button>
           </div>
         </div>
 
@@ -521,6 +527,21 @@
         </div>
       </div>
     </div>
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-title">Model with you (Three.js + MediaPipe)</div>
+      <p class="section-sub" style="margin-bottom:12px;">See the library model in relation to you. Search e.g. &quot;vase&quot; above, then start the camera.</p>
+      <div id="library-withyou-container" class="library-withyou-box">
+        <video id="library-withyou-video" playsinline muted style="display:none;"></video>
+        <canvas id="library-withyou-canvas"></canvas>
+        <div class="viewer-placeholder" id="library-withyou-placeholder">
+          <div class="icon">👤📦</div>
+          <p>Fetch a model above (e.g. vase), then click Start camera</p>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-capture" id="library-withyou-cam-btn" onclick="toggleLibraryWithYouCamera()">Start camera</button>
+      </div>
+    </div>
     <div class="library-grid" id="library-grid"></div>
   </div>
 </div>
@@ -540,10 +561,12 @@
 // CONFIG
 // ============================================================
 let CONFIG = {
-  geminiKey:         'AIzaSyAd4M93izXSXwSJF6WAVvSF1HyNusHECy4',
+  geminiKey:         'AIzaSyAN4cZEuVWmPRsHBNwPP_Kmnmd2yXgmrhM',
   elevenLabsKey:     '',
   // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
   thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
+  // Meshy: API key for Image-to-3D. Get one at https://www.meshy.ai/settings/api (format msy_...). Test key: msy_dummy_api_key_for_test_mode_12345678
+  meshyApiKey: 'msy_czcf9aMuDWojpg5RZ8oww5QMVrMcR1pBtePt',
 };
 
 let DEBUG = true;
@@ -556,6 +579,11 @@ let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
 let threeSceneLib = null, threeCameraLib = null, threeRendererLib = null, threeObjectLib = null;
+let currentLibraryModelForWithYou = null;
+let libraryWithYouStream = null;
+let threeSceneWithYou = null, threeCameraWithYou = null, threeRendererWithYou = null, modelGroupWithYou = null, videoTextureWithYou = null;
+let poseDetectorWithYou = null;
+let libraryWithYouAnimationId = null;
 let user    = JSON.parse(localStorage.getItem('fg_user')    || 'null');
 let library = JSON.parse(localStorage.getItem('fg_library') || '[]');
 const startTime = Date.now();
@@ -594,6 +622,14 @@ function showPage(id) {
         threeRendererLib.setSize(c.clientWidth, c.clientHeight);
         threeCameraLib.aspect = c.clientWidth / c.clientHeight;
         threeCameraLib.updateProjectionMatrix();
+      }
+    }
+    if (threeRendererWithYou && threeCameraWithYou) {
+      const c = document.getElementById('library-withyou-container');
+      if (c && c.clientWidth) {
+        threeRendererWithYou.setSize(c.clientWidth, c.clientHeight);
+        threeCameraWithYou.aspect = c.clientWidth / c.clientHeight;
+        threeCameraWithYou.updateProjectionMatrix();
       }
     }
   }
@@ -1150,6 +1186,146 @@ async function generateModel() {
 }
 
 // ============================================================
+// MESHY TEXT-TO-3D (no image; Gemini JSON as prompt; Meshy-6)
+// Set CONFIG.meshyApiKey — get it at https://www.meshy.ai/settings/api
+// ============================================================
+const MESHY_TEXT_TO_3D_BASE = 'https://api.meshy.ai/openapi/v2/text-to-3d';
+
+/** Create Meshy Text-to-3D preview task (no image). Prompt = Gemini JSON string. Uses ai_model meshy-6. Poll until done, return GLB URL. */
+async function createMeshyTextTo3DAndWait(promptText) {
+  if (!CONFIG.meshyApiKey) {
+    throw new Error('Set CONFIG.meshyApiKey (get it at https://www.meshy.ai/settings/api)');
+  }
+  const prompt = (promptText && String(promptText).trim()).length > 0
+    ? (String(promptText).length > 600 ? String(promptText).slice(0, 597) + '...' : String(promptText))
+    : 'a 3D object';
+  const body = {
+    mode: 'preview',
+    prompt: prompt,
+    ai_model: 'meshy-5',
+    should_remesh: false,
+  };
+  const createRes = await fetch(MESHY_TEXT_TO_3D_BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + CONFIG.meshyApiKey,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || 'Meshy Text-to-3D create failed: ' + createRes.status);
+  }
+  const createData = await createRes.json();
+  const taskId = createData.result;
+  if (!taskId) throw new Error('No task ID from Meshy');
+
+  const pollInterval = 2000;
+  for (let i = 0; i < 120; i++) {
+    const getRes = await fetch(MESHY_TEXT_TO_3D_BASE + '/' + taskId, {
+      headers: { 'Authorization': 'Bearer ' + CONFIG.meshyApiKey },
+    });
+    if (!getRes.ok) throw new Error('Meshy task fetch failed: ' + getRes.status);
+    const task = await getRes.json();
+    const status = task.status || '';
+    const progress = task.progress != null ? task.progress : 0;
+    if (typeof updateLoading === 'function') updateLoading('Meshy (model 6) generating 3D... (' + (progress).toFixed(0) + '%)');
+    if (status === 'SUCCEEDED') {
+      const glb = task.model_urls && task.model_urls.glb;
+      if (glb) return glb;
+      throw new Error('Meshy succeeded but no model_urls.glb');
+    }
+    if (status === 'FAILED' || status === 'CANCELED') {
+      throw new Error('Meshy task ' + status + (task.failure_reason ? ': ' + task.failure_reason : ''));
+    }
+    await new Promise((r) => setTimeout(r, pollInterval));
+  }
+  throw new Error('Meshy task timed out');
+}
+
+/**
+ * Build Gemini JSON for Meshy: detection + identification + model_ref, excluding improvement_instructions.
+ * @param {{ step1: object, step2: object, step3: object }} chainData - from runSingleCallChain()
+ * @returns {object} - full JSON to pass to Meshy (e.g. as texture_prompt string, max 600 chars)
+ */
+function buildGeminiJsonForMeshy(chainData) {
+  const s1 = chainData.step1 || {};
+  const s2 = chainData.step2 || {};
+  const s3 = chainData.step3 || {};
+  const modelRef = { ...s3 };
+  delete modelRef.improvement_instructions;
+  return {
+    detection: s1,
+    identification: s2,
+    model_ref: modelRef,
+  };
+}
+
+async function generateModelWithMeshy() {
+  const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
+  if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
+  if (!CONFIG.geminiKey) return toast('Set CONFIG.geminiKey for the Gemini pipeline.', 'info');
+  if (!CONFIG.meshyApiKey) return toast('Set CONFIG.meshyApiKey (https://www.meshy.ai/settings/api).', 'info');
+
+  document.getElementById('ai-chain-panel').style.display = 'block';
+  document.getElementById('ai-chain-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  showLoading('Running Gemini pipeline...');
+  logHTML('Generate (Meshy): running Gemini analysis first...', 'info');
+  _cachedImageParts = null;
+  let chainData;
+  try {
+    await testApiKey();
+    await buildImagePartsCache();
+    chainData = await runSingleCallChain();
+  } catch (e) {
+    hideLoading();
+    logHTML('Gemini pipeline failed: ' + (e && e.message), 'error');
+    toast('Gemini pipeline failed: ' + (e && e.message), 'error');
+    return;
+  }
+
+  const geminiJson = buildGeminiJsonForMeshy(chainData);
+  const promptForMeshy = JSON.stringify(geminiJson);
+  logHTML('Gemini JSON for Meshy (no improvement_instructions): ' + promptForMeshy.slice(0, 200) + (promptForMeshy.length > 200 ? '...' : ''), 'info');
+
+  updateLoading('Sending to Meshy Text-to-3D (Gemini JSON, no image; model 6)...');
+  logHTML('Meshy: creating Text-to-3D task (Meshy-6, prompt from Gemini)...', 'info');
+  let glbUrl;
+  try {
+    glbUrl = await createMeshyTextTo3DAndWait(promptForMeshy);
+  } catch (e) {
+    hideLoading();
+    logHTML('Meshy failed: ' + (e && e.message), 'error');
+    toast('Meshy failed: ' + (e && e.message), 'error');
+    return;
+  }
+
+  updateLoading('Loading 3D model...');
+  try {
+    await displayModelInThree(glbUrl);
+    document.getElementById('viewer-placeholder').style.display = 'none';
+    document.getElementById('model-info').classList.add('visible');
+    document.getElementById('save-btn').disabled = false;
+    currentModel = {
+      id: 'meshy_' + Date.now(),
+      name: (chainData.step2 && chainData.step2.object_type) || (chainData.step1 && chainData.step1.object_name) || 'Meshy 3D Model',
+      params: {},
+      gemini: chainData.step2 || chainData.step1 || {},
+    };
+  } catch (e) {
+    hideLoading();
+    toast('Model load failed: ' + (e && e.message), 'error');
+    return;
+  }
+
+  hideLoading();
+  toast('3D model generated with Meshy (Gemini + Meshy)!', 'success');
+  logHTML('Meshy model loaded and displayed.', 'success');
+}
+
+// ============================================================
 // BUILD PARAMS FROM CHAIN RESULTS
 // ============================================================
 // Normalize Gemini geometry type to exact Three.js class name; return null if unsupported
@@ -1675,6 +1851,7 @@ function displayModelInLibraryViewer(modelInput) {
       group.position.sub(center);
       threeSceneLib.add(group);
       threeObjectLib = group;
+      currentLibraryModelForWithYou = { url, format };
       if (placeholder) placeholder.style.display = 'none';
       resolve(group);
     };
@@ -1703,6 +1880,193 @@ function displayModelInLibraryViewer(modelInput) {
       return;
     }
     onError(new Error('Unsupported format "' + format + '" or loader not loaded.'));
+  });
+}
+
+// ============================================================
+// LIBRARY "MODEL WITH YOU" (Three.js + MediaPipe Pose)
+// ============================================================
+function initLibraryWithYouViewer() {
+  const container = document.getElementById('library-withyou-container');
+  const canvas = document.getElementById('library-withyou-canvas');
+  const video = document.getElementById('library-withyou-video');
+  if (!canvas || !container || !window.THREE || threeRendererWithYou) return;
+
+  threeRendererWithYou = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  threeRendererWithYou.setSize(container.clientWidth, container.clientHeight);
+  threeRendererWithYou.setPixelRatio(Math.min(2, window.devicePixelRatio));
+  threeRendererWithYou.setClearColor(0x000000, 1);
+
+  threeSceneWithYou = new THREE.Scene();
+  threeCameraWithYou = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+  threeCameraWithYou.position.set(0, 0, 0);
+  threeCameraWithYou.lookAt(0, 0, -1);
+
+  videoTextureWithYou = new THREE.VideoTexture(video);
+  videoTextureWithYou.minFilter = THREE.LinearFilter;
+  videoTextureWithYou.magFilter = THREE.LinearFilter;
+  const bgGeo = new THREE.PlaneGeometry(2, 2 * (container.clientHeight / container.clientWidth));
+  const bgMat = new THREE.MeshBasicMaterial({ map: videoTextureWithYou, depthWrite: false });
+  const bgMesh = new THREE.Mesh(bgGeo, bgMat);
+  bgMesh.position.z = -1.5;
+  threeSceneWithYou.add(bgMesh);
+
+  threeSceneWithYou.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const d = new THREE.DirectionalLight(0x00d4ff, 0.8);
+  d.position.set(1, 1, 0.5);
+  threeSceneWithYou.add(d);
+
+  window.addEventListener('resize', () => {
+    if (!threeRendererWithYou || !container || !threeCameraWithYou) return;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    threeRendererWithYou.setSize(w, h);
+    threeCameraWithYou.aspect = w / h;
+    threeCameraWithYou.updateProjectionMatrix();
+    if (bgMesh && bgMesh.geometry) {
+      bgMesh.geometry.dispose();
+      bgMesh.geometry = new THREE.PlaneGeometry(2, 2 * (h / w));
+    }
+  });
+}
+
+function placeModelFromPoseLandmarks(landmarks) {
+  if (!modelGroupWithYou || !threeCameraWithYou) return;
+  if (!landmarks || landmarks.length < 13) {
+    modelGroupWithYou.position.set(0, -0.1, -0.7);
+    return;
+  }
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  if (!leftShoulder || !rightShoulder) {
+    modelGroupWithYou.position.set(0, -0.1, -0.7);
+    return;
+  }
+  const chestX = (leftShoulder.x + rightShoulder.x) / 2;
+  const chestY = (leftShoulder.y + rightShoulder.y) / 2;
+  const ndcX = chestX * 2 - 1;
+  const ndcY = -(chestY * 2 - 1);
+  const v = new THREE.Vector3(ndcX, ndcY, 0.4);
+  v.unproject(threeCameraWithYou);
+  modelGroupWithYou.position.copy(v);
+}
+
+function renderLibraryWithYouLoop() {
+  if (!threeRendererWithYou || !threeSceneWithYou || !threeCameraWithYou) return;
+  const video = document.getElementById('library-withyou-video');
+  if (video && video.readyState >= 2 && videoTextureWithYou) videoTextureWithYou.needsUpdate = true;
+  threeRendererWithYou.render(threeSceneWithYou, threeCameraWithYou);
+  libraryWithYouAnimationId = requestAnimationFrame(renderLibraryWithYouLoop);
+}
+
+async function toggleLibraryWithYouCamera() {
+  const btn = document.getElementById('library-withyou-cam-btn');
+  const placeholder = document.getElementById('library-withyou-placeholder');
+  if (libraryWithYouStream) {
+    libraryWithYouStream.getTracks().forEach(t => t.stop());
+    libraryWithYouStream = null;
+    if (libraryWithYouAnimationId) cancelAnimationFrame(libraryWithYouAnimationId);
+    libraryWithYouAnimationId = null;
+    if (poseDetectorWithYou) poseDetectorWithYou.close && poseDetectorWithYou.close();
+    poseDetectorWithYou = null;
+    btn.textContent = 'Start camera';
+    if (placeholder) placeholder.style.display = 'flex';
+    return;
+  }
+  if (!currentLibraryModelForWithYou) {
+    toast('Fetch a model from Thingiverse above first (e.g. search "vase").', 'info');
+    return;
+  }
+  try {
+    libraryWithYouStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    const video = document.getElementById('library-withyou-video');
+    video.srcObject = libraryWithYouStream;
+    await video.play();
+  } catch (e) {
+    toast('Camera access denied: ' + (e && e.message), 'error');
+    return;
+  }
+  if (!threeSceneWithYou) initLibraryWithYouViewer();
+  await updateLibraryWithYouModel();
+  if (placeholder) placeholder.style.display = 'none';
+
+  if (typeof Pose !== 'undefined') {
+    try {
+      poseDetectorWithYou = new Pose({
+        locateFile: (file) => 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469240/' + file,
+      });
+      poseDetectorWithYou.setOptions({ upperBodyOnly: false, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      poseDetectorWithYou.onResults((results) => {
+        if (results.poseLandmarks) placeModelFromPoseLandmarks(results.poseLandmarks);
+      });
+    } catch (err) {
+      console.warn('MediaPipe Pose init failed, model at fixed position:', err);
+    }
+  }
+
+  function detectPose() {
+    const video = document.getElementById('library-withyou-video');
+    if (!video || video.readyState < 2 || !poseDetectorWithYou) {
+      requestAnimationFrame(detectPose);
+      return;
+    }
+    poseDetectorWithYou.send({ image: video });
+    requestAnimationFrame(detectPose);
+  }
+  if (poseDetectorWithYou) detectPose();
+
+  renderLibraryWithYouLoop();
+  btn.textContent = 'Stop camera';
+}
+
+function loadModelIntoLibraryWithYouScene(url, format, onLoad) {
+  if (!threeSceneWithYou || !window.THREE) return;
+  if (modelGroupWithYou) {
+    threeSceneWithYou.remove(modelGroupWithYou);
+    modelGroupWithYou = null;
+  }
+  format = format || (url && url.toLowerCase().match(/\.(stl|obj|glb|gltf)(\?|$)/) && RegExp.$1) || 'stl';
+  const onLoaded = (group) => {
+    if (!(group instanceof THREE.Group)) group = new THREE.Group().add(group);
+    group.scale.setScalar(0.15);
+    group.position.set(0, -0.1, -0.7);
+    threeSceneWithYou.add(group);
+    modelGroupWithYou = group;
+    if (onLoad) onLoad();
+  };
+  const onError = (err) => console.warn('Library WithYou model load error:', err);
+  if (format === 'stl' && window.THREE.STLLoader) {
+    const loader = new THREE.STLLoader();
+    loader.load(url, (geometry) => {
+      const mat = new THREE.MeshPhongMaterial({ color: 0x00d4ff, specular: 0x222222, shininess: 20 });
+      const mesh = new THREE.Mesh(geometry, mat);
+      geometry.computeVertexNormals();
+      onLoaded(new THREE.Group().add(mesh));
+    }, undefined, onError);
+    return;
+  }
+  if ((format === 'gltf' || format === 'glb') && window.THREE.GLTFLoader) {
+    const loader = new THREE.GLTFLoader();
+    loader.load(url, (gltf) => onLoaded(gltf.scene || new THREE.Group()), undefined, onError);
+    return;
+  }
+  if (format === 'obj' && window.THREE.OBJLoader) {
+    const loader = new THREE.OBJLoader();
+    loader.load(url, onLoaded, undefined, onError);
+    return;
+  }
+  onError(new Error('Unsupported format or loader'));
+}
+
+function updateLibraryWithYouModel() {
+  if (!currentLibraryModelForWithYou) return Promise.resolve();
+  if (!threeSceneWithYou) initLibraryWithYouViewer();
+  return new Promise((resolve) => {
+    loadModelIntoLibraryWithYouScene(
+      currentLibraryModelForWithYou.url,
+      currentLibraryModelForWithYou.format,
+      resolve
+    );
   });
 }
 
@@ -1965,10 +2329,11 @@ function switchInputTab(mode) {
 }
 
 function updateGenerateButtonState() {
-  const btn = document.getElementById('btn-generate');
-  if (!btn) return;
   const canGenerate = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
-  btn.disabled = !canGenerate;
+  ['btn-generate', 'btn-generate-meshy'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = !canGenerate;
+  });
 }
 
 function handleFullVideoUpload(file) {
@@ -2174,7 +2539,7 @@ function removeCapture(idx) {
   captures.splice(idx, 1);
   updateThumbStrip();
   updateCaptureUI();
-  document.getElementById('btn-generate').disabled = captures.length < 5;
+  updateGenerateButtonState();
 }
 
 function updateCaptureUI() {
