@@ -7,6 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469240/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -116,6 +121,11 @@
     #viewer-container { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
     #three-canvas { width: 100%; height: 100%; display: block; }
     .viewer-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; }
+    #library-viewer-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    #library-three-canvas { width: 100%; height: 100%; display: block; }
+    .library-withyou-box { position: relative; width: 100%; max-width: 640px; aspect-ratio: 4/3; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    #library-withyou-canvas { width: 100%; height: 100%; display: block; object-fit: cover; }
+    #library-withyou-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dim); font-size: 0.85rem; pointer-events: none; }
     .viewer-placeholder .icon { font-size: 2.5rem; margin-bottom: 8px; }
 
     /* Model info */
@@ -267,7 +277,7 @@
     <nav>
       <button class="nav-btn active" onclick="showPage('home')">Home</button>
       <button class="nav-btn" onclick="showPage('scan')">Scan</button>
-      <button class="nav-btn" onclick="testAPI()">Library</button>
+      <button class="nav-btn" onclick="showPage('library')">Library</button>
       <button class="auth-btn" onclick="toggleAuth()" id="auth-btn">Sign In</button>
     </nav>
   </header>
@@ -419,6 +429,7 @@
           <div id="capture-count-bar" style="font-family:'Orbitron',monospace;font-size:0.6rem;color:var(--teal);text-align:center;margin-top:6px;letter-spacing:2px">0 / 5 CAPTURED</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn btn-generate" id="btn-generate" onclick="generateModel()" disabled>⚡ Run AI Chain + Generate 3D</button>
+            <button class="btn btn-generate" id="btn-generate-meshy" onclick="generateModelWithMeshy()" disabled>🎨 Generate model (with Meshy)</button>
           </div>
         </div>
 
@@ -523,6 +534,41 @@
       </div>
       <button class="cta-primary" onclick="showPage('scan')">+ New Scan</button>
     </div>
+    <!-- Thingiverse API test (not connected to AI pipeline) -->
+    <div class="panel" style="margin-bottom:20px; max-width:480px;">
+      <div class="panel-title">Thingiverse API test</div>
+      <p style="font-size:0.75rem;color:var(--dim);margin-bottom:10px;">Set CONFIG.thingiverseAccessToken in the script. Get a token via <a href="https://www.thingiverse.com/apps/create" target="_blank" rel="noopener" style="color:var(--teal)">Thingiverse Apps</a> (OAuth2) or from the browser Network tab when logged in.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="thingiverse-test-query" placeholder="e.g. vase" style="flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;color:var(--text);font-size:0.85rem;" />
+        <button class="btn btn-generate" onclick="testThingiversePipeline()">Fetch thing ID &amp; display</button>
+      </div>
+      <div id="thingiverse-test-status" style="font-size:0.72rem;color:var(--dim);margin-top:8px;"></div>
+    </div>
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-title">Thingiverse 3D preview</div>
+      <div id="library-viewer-container">
+        <canvas id="library-three-canvas"></canvas>
+        <div class="viewer-placeholder" id="library-viewer-placeholder">
+          <div class="icon">📦</div>
+          <p>Fetch a model from Thingiverse above to view it here</p>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:20px;">
+      <div class="panel-title">Model with you (Three.js + MediaPipe)</div>
+      <p class="section-sub" style="margin-bottom:12px;">See the library model in relation to you. Search e.g. &quot;vase&quot; above, then start the camera.</p>
+      <div id="library-withyou-container" class="library-withyou-box">
+        <video id="library-withyou-video" playsinline muted style="display:none;"></video>
+        <canvas id="library-withyou-canvas"></canvas>
+        <div class="viewer-placeholder" id="library-withyou-placeholder">
+          <div class="icon">👤📦</div>
+          <p>Fetch a model above (e.g. vase), then click Start camera</p>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-capture" id="library-withyou-cam-btn" onclick="toggleLibraryWithYouCamera()">Start camera</button>
+      </div>
+    </div>
     <div class="library-grid" id="library-grid"></div>
   </div>
 </div>
@@ -542,8 +588,12 @@
 // CONFIG
 // ============================================================
 let CONFIG = {
-  geminiKey:      'AIzaSyCck4BSlE7j8VTmhkKIPW49Zmudf1WjK2M',
-  elevenLabsKey:  '',
+  geminiKey:         'AIzaSyAN4cZEuVWmPRsHBNwPP_Kmnmd2yXgmrhM',
+  elevenLabsKey:     '',
+  // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
+  thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
+  // Meshy: API key for Image-to-3D. Get one at https://www.meshy.ai/settings/api (format msy_...). Test key: msy_dummy_api_key_for_test_mode_12345678
+  meshyApiKey: 'msy_czcf9aMuDWojpg5RZ8oww5QMVrMcR1pBtePt',
 };
 
 let DEBUG = true;
@@ -555,6 +605,12 @@ let BACKEND_URL = 'http://localhost:8000';
 let captures = [], currentModel = null, stream = null;
 let isRecording = false, mediaRecorder = null, audioChunks = [];
 let threeScene = null, threeCamera = null, threeRenderer = null, threeObject = null;
+let threeSceneLib = null, threeCameraLib = null, threeRendererLib = null, threeObjectLib = null;
+let currentLibraryModelForWithYou = null;
+let libraryWithYouStream = null;
+let threeSceneWithYou = null, threeCameraWithYou = null, threeRendererWithYou = null, modelGroupWithYou = null, videoTextureWithYou = null;
+let poseDetectorWithYou = null;
+let libraryWithYouAnimationId = null;
 let user    = JSON.parse(localStorage.getItem('fg_user')    || 'null');
 let library = JSON.parse(localStorage.getItem('fg_library') || '[]');
 const startTime = Date.now();
@@ -585,7 +641,25 @@ function showPage(id) {
   document.getElementById('page-' + id).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => { if (b.textContent.toLowerCase().includes(id)) b.classList.add('active'); });
   if (id === 'scan')    initThreeJS();
-  if (id === 'library') renderLibrary();
+  if (id === 'library') {
+    renderLibrary();
+    if (threeRendererLib && threeCameraLib) {
+      const c = document.getElementById('library-viewer-container');
+      if (c && c.clientWidth) {
+        threeRendererLib.setSize(c.clientWidth, c.clientHeight);
+        threeCameraLib.aspect = c.clientWidth / c.clientHeight;
+        threeCameraLib.updateProjectionMatrix();
+      }
+    }
+    if (threeRendererWithYou && threeCameraWithYou) {
+      const c = document.getElementById('library-withyou-container');
+      if (c && c.clientWidth) {
+        threeRendererWithYou.setSize(c.clientWidth, c.clientHeight);
+        threeCameraWithYou.aspect = c.clientWidth / c.clientHeight;
+        threeCameraWithYou.updateProjectionMatrix();
+      }
+    }
+  }
 }
 
 async function testAPI() {
@@ -935,7 +1009,7 @@ async function runSingleCallChain() {
   const intro = isVideo ? 'Analyze this video of an object (watch the whole video). ' : 'Analyze this object. ';
   const prompt = {
     text: intro + `Reply with ONLY a JSON object, no markdown, no text outside the JSON.
-Keys required: detection (object_name, confidence_score 0-1, confidence_reason, lighting_quality, image_clarity), identification (object_type, brand, item_model, material, primary_color, estimated_height_cm, estimated_width_cm, estimated_depth_cm, shape_class, surface_finish, has_handle, has_lid, notable_features, search_query, confidence_score, confidence_breakdown with brand/model/material/dimensions_confidence), model_ref (model_url from sketchfab/free3d/thingiverse, model_source, model_match_quality, three_js_geometry, geometry_args array, color_hex, roughness, metalness, emissive_hex, has_secondary_geometry, improvement_instructions array of 5 strings).`
+Keys required: detection (object_name, confidence_score 0-1, confidence_reason, lighting_quality, image_clarity), identification (object_type, brand, item_model, material, primary_color, estimated_height_cm, estimated_width_cm, estimated_depth_cm, shape_class, surface_finish, has_handle, has_lid, notable_features, search_query, confidence_score, confidence_breakdown with brand/model/material/dimensions_confidence), three_js_geometry: exactfly one of BoxGeometry, CylinderGeometry, SphereGeometry, ConeGeometry, TorusGeometry; geometry_args: array of numbers only — BoxGeometry [width,height,depth], CylinderGeometry [radiusTop,radiusBottom,height,radialSegments], SphereGeometry [radius,widthSeg,heightSeg], ConeGeometry [radius,height,radialSegments], TorusGeometry [radius,tube,radialSeg,tubularSeg]; color_hex #rrggbb, roughness 0-1, metalness 0-1, emissive_hex #rrggbb, has_secondary_geometry, improvement_instructions array of 5 strings).`
   };
 
   const result = await callGemini([prompt, ...imageParts]);
@@ -991,11 +1065,21 @@ Keys required: detection (object_name, confidence_score 0-1, confidence_reason, 
 
   // ── Render Step 3 ──
   const instructions = s3.improvement_instructions || [];
+  const modelUrls = getModelRefUrls(s3);
+  const modelUrlHTML = modelUrls.length > 0
+    ? modelUrls.map((url, i) => {
+        const valid = isValidUrl(url);
+        const label = modelUrls.length > 1 ? `Reference ${i + 1}` : '3D model reference';
+        return valid
+          ? `<div style="margin-bottom:6px"><span style="font-size:0.6rem;color:var(--dim);display:block;margin-bottom:2px">${label}</span><a href="${url}" target="_blank" rel="noopener">${url}</a></div>`
+          : `<div style="margin-bottom:6px"><span style="font-size:0.6rem;color:var(--dim);display:block;margin-bottom:2px">${label}</span><span style="color:var(--dim)">Invalid or missing URL</span></div>`;
+      }).join('')
+    : '<span style="color:var(--dim)">No reference links</span>';
   document.getElementById('chain-content-3').innerHTML = `
     <div class="search-result">
-      <label style="font-size:0.6rem;color:var(--dim);display:block;margin-bottom:4px">BEST 3D MODEL REFERENCE</label>
-      <a href="${s3.model_url || '#'}" target="_blank" rel="noopener">${s3.model_url || 'Not found'}</a>
-      <p>Source: ${s3.model_source || '—'} · Match quality: <span style="color:var(--${s3.model_match_quality === 'exact' ? 'green' : s3.model_match_quality === 'close' ? 'teal' : 'gold'})">${s3.model_match_quality || '—'}</span></p>
+      <label style="font-size:0.6rem;color:var(--dim);display:block;margin-bottom:4px">3D MODEL REFERENCES</label>
+      ${modelUrlHTML}
+      <p style="margin-top:8px">Source: ${s3.model_source || '—'} · Match quality: <span style="color:var(--${s3.model_match_quality === 'exact' ? 'green' : s3.model_match_quality === 'close' ? 'teal' : 'gold'})">${s3.model_match_quality || '—'}</span></p>
     </div>
     <div style="margin-top:10px;font-family:'Orbitron',monospace;font-size:0.55rem;color:var(--dim);letter-spacing:1px">5 IMPROVEMENT INSTRUCTIONS</div>
     <ul class="instructions-list">
@@ -1129,19 +1213,204 @@ async function generateModel() {
 }
 
 // ============================================================
+// MESHY TEXT-TO-3D (no image; Gemini JSON as prompt; Meshy-6)
+// Set CONFIG.meshyApiKey — get it at https://www.meshy.ai/settings/api
+// ============================================================
+const MESHY_TEXT_TO_3D_BASE = 'https://api.meshy.ai/openapi/v2/text-to-3d';
+
+/** Create Meshy Text-to-3D preview task (no image). Prompt = Gemini JSON string. Uses ai_model meshy-6. Poll until done, return GLB URL. */
+async function createMeshyTextTo3DAndWait(promptText) {
+  if (!CONFIG.meshyApiKey) {
+    throw new Error('Set CONFIG.meshyApiKey (get it at https://www.meshy.ai/settings/api)');
+  }
+  const prompt = (promptText && String(promptText).trim()).length > 0
+    ? (String(promptText).length > 600 ? String(promptText).slice(0, 597) + '...' : String(promptText))
+    : 'a 3D object';
+  const body = {
+    mode: 'preview',
+    prompt: prompt,
+    ai_model: 'meshy-5',
+    should_remesh: false,
+  };
+  const createRes = await fetch(MESHY_TEXT_TO_3D_BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + CONFIG.meshyApiKey,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    throw new Error(err.message || err.detail || 'Meshy Text-to-3D create failed: ' + createRes.status);
+  }
+  const createData = await createRes.json();
+  const taskId = createData.result;
+  if (!taskId) throw new Error('No task ID from Meshy');
+
+  const pollInterval = 2000;
+  for (let i = 0; i < 120; i++) {
+    const getRes = await fetch(MESHY_TEXT_TO_3D_BASE + '/' + taskId, {
+      headers: { 'Authorization': 'Bearer ' + CONFIG.meshyApiKey },
+    });
+    if (!getRes.ok) throw new Error('Meshy task fetch failed: ' + getRes.status);
+    const task = await getRes.json();
+    const status = task.status || '';
+    const progress = task.progress != null ? task.progress : 0;
+    if (typeof updateLoading === 'function') updateLoading('Meshy (model 6) generating 3D... (' + (progress).toFixed(0) + '%)');
+    if (status === 'SUCCEEDED') {
+      const glb = task.model_urls && task.model_urls.glb;
+      if (glb) return glb;
+      throw new Error('Meshy succeeded but no model_urls.glb');
+    }
+    if (status === 'FAILED' || status === 'CANCELED') {
+      throw new Error('Meshy task ' + status + (task.failure_reason ? ': ' + task.failure_reason : ''));
+    }
+    await new Promise((r) => setTimeout(r, pollInterval));
+  }
+  throw new Error('Meshy task timed out');
+}
+
+/**
+ * Build Gemini JSON for Meshy: detection + identification + model_ref, excluding improvement_instructions.
+ * @param {{ step1: object, step2: object, step3: object }} chainData - from runSingleCallChain()
+ * @returns {object} - full JSON to pass to Meshy (e.g. as texture_prompt string, max 600 chars)
+ */
+function buildGeminiJsonForMeshy(chainData) {
+  const s1 = chainData.step1 || {};
+  const s2 = chainData.step2 || {};
+  const s3 = chainData.step3 || {};
+  const modelRef = { ...s3 };
+  delete modelRef.improvement_instructions;
+  return {
+    detection: s1,
+    identification: s2,
+    model_ref: modelRef,
+  };
+}
+
+async function generateModelWithMeshy() {
+  const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
+  if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
+  if (!CONFIG.geminiKey) return toast('Set CONFIG.geminiKey for the Gemini pipeline.', 'info');
+  if (!CONFIG.meshyApiKey) return toast('Set CONFIG.meshyApiKey (https://www.meshy.ai/settings/api).', 'info');
+
+  document.getElementById('ai-chain-panel').style.display = 'block';
+  document.getElementById('ai-chain-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  showLoading('Running Gemini pipeline...');
+  logHTML('Generate (Meshy): running Gemini analysis first...', 'info');
+  _cachedImageParts = null;
+  let chainData;
+  try {
+    await testApiKey();
+    await buildImagePartsCache();
+    chainData = await runSingleCallChain();
+  } catch (e) {
+    hideLoading();
+    logHTML('Gemini pipeline failed: ' + (e && e.message), 'error');
+    toast('Gemini pipeline failed: ' + (e && e.message), 'error');
+    return;
+  }
+
+  const geminiJson = buildGeminiJsonForMeshy(chainData);
+  const promptForMeshy = JSON.stringify(geminiJson);
+  logHTML('Gemini JSON for Meshy (no improvement_instructions): ' + promptForMeshy.slice(0, 200) + (promptForMeshy.length > 200 ? '...' : ''), 'info');
+
+  updateLoading('Sending to Meshy Text-to-3D (Gemini JSON, no image; model 6)...');
+  logHTML('Meshy: creating Text-to-3D task (Meshy-6, prompt from Gemini)...', 'info');
+  let glbUrl;
+  try {
+    glbUrl = await createMeshyTextTo3DAndWait(promptForMeshy);
+  } catch (e) {
+    hideLoading();
+    logHTML('Meshy failed: ' + (e && e.message), 'error');
+    toast('Meshy failed: ' + (e && e.message), 'error');
+    return;
+  }
+
+  updateLoading('Loading 3D model...');
+  try {
+    await displayModelInThree(glbUrl);
+    document.getElementById('viewer-placeholder').style.display = 'none';
+    document.getElementById('model-info').classList.add('visible');
+    document.getElementById('save-btn').disabled = false;
+    currentModel = {
+      id: 'meshy_' + Date.now(),
+      name: (chainData.step2 && chainData.step2.object_type) || (chainData.step1 && chainData.step1.object_name) || 'Meshy 3D Model',
+      params: {},
+      gemini: chainData.step2 || chainData.step1 || {},
+    };
+  } catch (e) {
+    hideLoading();
+    toast('Model load failed: ' + (e && e.message), 'error');
+    return;
+  }
+
+  hideLoading();
+  toast('3D model generated with Meshy (Gemini + Meshy)!', 'success');
+  logHTML('Meshy model loaded and displayed.', 'success');
+}
+
+// ============================================================
 // BUILD PARAMS FROM CHAIN RESULTS
 // ============================================================
+// Normalize Gemini geometry type to exact Three.js class name; return null if unsupported
+function normalizeGeometryType(t) {
+  if (!t || typeof t !== 'string') return null;
+  const s = t.trim();
+  const lower = s.toLowerCase();
+  if (lower.includes('box')) return 'BoxGeometry';
+  if (lower.includes('cylinder') || lower.includes('cylindr')) return 'CylinderGeometry';
+  if (lower.includes('sphere') || lower.includes('ball')) return 'SphereGeometry';
+  if (lower.includes('cone')) return 'ConeGeometry';
+  if (lower.includes('torus')) return 'TorusGeometry';
+  return null;
+}
+
+// Coerce to number; if invalid return default
+function toNum(val, def) {
+  const n = typeof val === 'number' ? val : parseFloat(val);
+  return (typeof n === 'number' && isFinite(n)) ? n : def;
+}
+
+// Sanitize geometry args for a given type: ensure array of finite numbers with safe defaults
+function sanitizeGeometryArgs(type, args) {
+  const raw = Array.isArray(args) ? args : [];
+  const num = raw.map((a, i) => toNum(a, 0.5));
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  switch (type) {
+    case 'BoxGeometry':
+      return [clamp(num[0] || 0.5, 0.05, 10), clamp(num[1] || 0.5, 0.05, 10), clamp(num[2] || 0.5, 0.05, 10)];
+    case 'CylinderGeometry':
+      return [clamp(num[0] != null ? num[0] : 0.4, 0.05, 10), clamp(num[1] != null ? num[1] : 0.4, 0.05, 10), clamp(num[2] != null ? num[2] : 1.5, 0.05, 10), Math.max(3, Math.min(64, Math.round(toNum(num[3], 32))))];
+    case 'SphereGeometry': {
+      const r = clamp(num[0] != null ? num[0] : 0.5, 0.05, 10);
+      const w = Math.max(3, Math.min(64, Math.round(toNum(num[1], 32))));
+      const h = Math.max(2, Math.min(32, Math.round(toNum(num[2], 16))));
+      return [r, w, h];
+    }
+    case 'ConeGeometry':
+      return [clamp(num[0] != null ? num[0] : 0.4, 0.05, 10), clamp(num[1] != null ? num[1] : 1, 0.05, 10), Math.max(3, Math.min(64, Math.round(toNum(num[2], 32))))];
+    case 'TorusGeometry':
+      return [clamp(num[0] != null ? num[0] : 0.5, 0.05, 5), clamp(num[1] != null ? num[1] : 0.2, 0.01, 2), Math.max(3, Math.min(64, Math.round(toNum(num[2], 16)))), Math.max(3, Math.min(64, Math.round(toNum(num[3], 16))))];
+    default:
+      return [0.4, 0.4, 1.5, 32]; // CylinderGeometry default
+  }
+}
+
 function buildParamsFromChain(step2, step3) {
-  // Prefer step3 Three.js params if available, fall back to step2 analysis
+  // Prefer step3 Three.js params if available and valid, fall back to step2 analysis
   let geometry_type, geometry_args, color_hex, roughness, metalness, emissive_hex;
 
-  if (step3?.three_js_geometry && step3?.geometry_args?.length) {
-    geometry_type = step3.three_js_geometry;
-    geometry_args = step3.geometry_args;
-    color_hex     = step3.color_hex || colorFromName(step2?.primary_color || 'blue');
-    roughness     = step3.roughness ?? 0.4;
-    metalness     = step3.metalness ?? 0.1;
-    emissive_hex  = step3.emissive_hex || '#001122';
+  const normalizedType = step3?.three_js_geometry ? normalizeGeometryType(step3.three_js_geometry) : null;
+  if (normalizedType && Array.isArray(step3?.geometry_args) && step3.geometry_args.length > 0) {
+    geometry_type = normalizedType;
+    geometry_args = sanitizeGeometryArgs(normalizedType, step3.geometry_args);
+    color_hex     = isValidHexColor(step3.color_hex) ? step3.color_hex.trim() : colorFromName(step2?.primary_color || 'blue');
+    roughness     = Math.max(0, Math.min(1, toNum(step3.roughness, 0.4)));
+    metalness     = Math.max(0, Math.min(1, toNum(step3.metalness, 0.1)));
+    emissive_hex  = isValidHexColor(step3.emissive_hex) ? step3.emissive_hex.trim() : '#001122';
   } else {
     // Fallback: derive from step2
     const g = step2 || {};
@@ -1166,7 +1435,7 @@ function buildParamsFromChain(step2, step3) {
 
     // Normalize to reasonable Three.js scale (max 2.0 in any dimension)
     const maxDim = Math.max(h, w, d, 0.5);
-    const scale = maxDim > 2.0 ? 2.0 / maxDim : 1.0;
+    const scale = maxDim > 4.0 ? 2.0 / maxDim : 0.5;
     const sh = h * scale, sw = w * scale, sd = d * scale;
     const r = Math.max(sw, sd) / 2;
 
@@ -1294,12 +1563,13 @@ function renderThreeModel(params, geminiData) {
       geo.computeVertexNormals();
     }
 
-    const color = params.color_hex || colorFromName(geminiData?.primary_color || 'blue');
+    const colorHex = params.color_hex || colorFromName(geminiData?.primary_color || 'blue');
+    const colorValid = isValidHexColor(colorHex) ? colorHex.trim() : '#4488cc';
     const mat = new THREE.MeshStandardMaterial({
-      color:             new THREE.Color(color),
-      roughness:         params.roughness  ?? 0.4,
-      metalness:         params.metalness  ?? 0.2,
-      emissive:          new THREE.Color(params.emissive_hex || '#001122'),
+      color:             new THREE.Color(colorValid),
+      roughness:         Math.max(0, Math.min(1, toNum(params.roughness, 0.4))),
+      metalness:         Math.max(0, Math.min(1, toNum(params.metalness, 0.2))),
+      emissive:          new THREE.Color(isValidHexColor(params.emissive_hex) ? params.emissive_hex.trim() : '#001122'),
       emissiveIntensity: 0.1,
     });
 
@@ -1313,30 +1583,532 @@ function renderThreeModel(params, geminiData) {
       group.add(wm);
     }
 
-    if (params.secondary_geometry) {
+    if (params.secondary_geometry && Array.isArray(params.secondary_geometry.args)) {
       const sg = params.secondary_geometry;
-      let geo2;
-      if      (sg.type === 'CylinderGeometry') geo2 = new THREE.CylinderGeometry(...sg.args);
-      else if (sg.type === 'BoxGeometry')      geo2 = new THREE.BoxGeometry(...sg.args);
-      else if (sg.type === 'SphereGeometry')   geo2 = new THREE.SphereGeometry(...sg.args);
-      if (geo2) {
-        const m2 = new THREE.Mesh(geo2, mat.clone());
-        if (sg.position) m2.position.set(...sg.position);
-        group.add(m2);
-      }
+      try {
+        const geo2 = safeCreateGeometry(sg.type, sg.args);
+        if (geo2) {
+          const m2 = new THREE.Mesh(geo2, mat.clone());
+          if (Array.isArray(sg.position) && sg.position.length >= 3) m2.position.set(toNum(sg.position[0],0), toNum(sg.position[1],0), toNum(sg.position[2],0));
+          group.add(m2);
+        }
+      } catch (e2) { /* skip secondary on error */ }
     }
 
-    if (params.scale) group.scale.set(...params.scale);
+    if (Array.isArray(params.scale) && params.scale.length >= 3) {
+      group.scale.set(toNum(params.scale[0],1), toNum(params.scale[1],1), toNum(params.scale[2],1));
+    }
   } catch (e) {
     logHTML('Error rendering model: ' + e.message, 'error');
     group.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(0.4, 0.4, 1.5, 32),
+      defaultGeo(),
       new THREE.MeshStandardMaterial({ color: 0x4488cc, roughness: 0.4, metalness: 0.2 })
     ));
   }
 
   threeScene.add(group);
   threeObject = group;
+}
+
+// ============================================================
+// THINGIVERSE API (not connected to AI pipeline)
+// Put your OAuth2 access token in CONFIG.thingiverseAccessToken.
+// Get one at https://www.thingiverse.com/apps/create or from browser Network tab when logged in (api.thingiverse.com requests use Authorization: Bearer <token>).
+// ============================================================
+
+const THINGIVERSE_API_BASE = 'https://api.thingiverse.com';
+
+/**
+ * Fetches the first thing ID from a Thingiverse search query.
+ * @param {string} query - Search term (e.g. "vase", "chair")
+ * @returns {Promise<number|null>} - Thing id or null if none / error
+ */
+async function fetchThingIdFromThingiverseQuery(query) {
+  if (!CONFIG.thingiverseAccessToken) {
+    console.warn('Thingiverse: CONFIG.thingiverseAccessToken is empty. Get a token via https://www.thingiverse.com/apps/create');
+    return null;
+  }
+  const term = encodeURIComponent(query.trim());
+  const url = `${THINGIVERSE_API_BASE}/search/${term}?access_token=${encodeURIComponent(CONFIG.thingiverseAccessToken)}`;
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('Thingiverse search failed', res.status, err);
+      return null;
+    }
+    const data = await res.json();
+    const hits = Array.isArray(data) ? data : (data.hits || data.search || data.results || []);
+    const first = hits[0];
+    if (!first) return null;
+    const id = first.id != null ? first.id : first.thing_id;
+    return id != null ? Number(id) : null;
+  } catch (e) {
+    console.error('Thingiverse search error', e);
+    return null;
+  }
+}
+
+/**
+ * Gets a 3D model file from a Thingiverse thing (first STL/OBJ/GLTF file). Fetches thing files and returns a download URL or blob URL for the model.
+ * @param {number|string} thingId - Thingiverse thing ID
+ * @returns {Promise<{url: string, format: string}|null>} - url (direct or blob URL) and format ('stl','obj','gltf','glb'); null on error
+ */
+async function getModelFileFromThingiverse(thingId) {
+  if (!CONFIG.thingiverseAccessToken) {
+    console.warn('Thingiverse: CONFIG.thingiverseAccessToken is empty.');
+    return null;
+  }
+  const id = String(thingId);
+  const token = encodeURIComponent(CONFIG.thingiverseAccessToken);
+  try {
+    let files = [];
+    const thingRes = await fetch(`${THINGIVERSE_API_BASE}/things/${id}?access_token=${token}`, { headers: { Accept: 'application/json' } });
+    if (!thingRes.ok) {
+      console.error('Thingiverse thing request failed', thingRes.status, await thingRes.text());
+      return null;
+    }
+    const thing = await thingRes.json();
+    files = thing.files || [];
+    if (files.length === 0) {
+      const filesRes = await fetch(`${THINGIVERSE_API_BASE}/things/${id}/files?access_token=${token}`, { headers: { Accept: 'application/json' } });
+      if (filesRes.ok) {
+        const filesData = await filesRes.json();
+        files = Array.isArray(filesData) ? filesData : (filesData.files || []);
+      }
+    }
+    const exts = ['.stl', '.obj', '.gltf', '.glb'];
+    const pick = files.find((f) => {
+      const n = (f.name || f.file_name || '').toLowerCase();
+      return exts.some((e) => n.endsWith(e));
+    }) || files[0];
+    if (!pick) {
+      console.error('Thingiverse: no model files found for thing', id);
+      return null;
+    }
+    const downloadUrl = pick.public_url || pick.download_url || pick.url;
+    if (!downloadUrl || !downloadUrl.startsWith('http')) {
+      console.error('Thingiverse: no download URL on file', pick);
+      return null;
+    }
+    const name = (pick.name || pick.file_name || '').toLowerCase();
+    let format = 'stl';
+    if (name.endsWith('.obj')) format = 'obj';
+    else if (name.endsWith('.glb')) format = 'glb';
+    else if (name.endsWith('.gltf')) format = 'gltf';
+    return { url: downloadUrl, format };
+  } catch (e) {
+    console.error('getModelFileFromThingiverse error', e);
+    return null;
+  }
+}
+
+/**
+ * Displays a 3D model (glTF/GLB or STL) in the Three.js scene. Removes any existing threeObject and adds the loaded model.
+ * @param {string|object} modelInput - URL string to a .gltf/.glb/.stl file, or object from getModelFileFromThingiverse: { url, format }
+ * @param {object} options - { revokeBlobUrls: string[] } - optional blob URLs to revoke after load
+ * @returns {Promise<THREE.Group>} - The group containing the loaded model
+ */
+function displayModelInThree(modelInput, options) {
+  if (!window.THREE) {
+    return Promise.reject(new Error('THREE not loaded'));
+  }
+  if (!threeScene) initThreeJS();
+  if (threeObject) {
+    threeScene.remove(threeObject);
+    threeObject = null;
+  }
+  const revokeBlobUrls = (options && options.revokeBlobUrls) || [];
+  let url = typeof modelInput === 'string' ? modelInput : (modelInput && modelInput.url);
+  let format = (modelInput && modelInput.format);
+  if (!format && url) {
+    const m = url.toLowerCase().match(/\.(stl|obj|glb|gltf)(\?|$)/);
+    format = m ? m[1] : 'stl';
+  }
+  format = format || 'stl';
+  if (!url) return Promise.reject(new Error('Invalid modelInput: provide URL string or { url, format }'));
+
+  return new Promise((resolve, reject) => {
+    const onLoad = (group) => {
+      if (!(group instanceof THREE.Group)) group = new THREE.Group().add(group);
+      threeScene.add(group);
+      threeObject = group;
+      revokeBlobUrls.forEach((u) => URL.revokeObjectURL(u));
+      resolve(group);
+    };
+    const onError = (err) => {
+      revokeBlobUrls.forEach((u) => URL.revokeObjectURL(u));
+      reject(err);
+    };
+    if (format === 'stl' && window.THREE.STLLoader) {
+      const loader = new THREE.STLLoader();
+      loader.load(url, (geometry) => {
+        const mat = new THREE.MeshPhongMaterial({ color: 0x00d4ff, specular: 0x222222, shininess: 20 });
+        const mesh = new THREE.Mesh(geometry, mat);
+        geometry.computeVertexNormals();
+        const g = new THREE.Group();
+        g.add(mesh);
+        onLoad(g);
+      }, undefined, onError);
+      return;
+    }
+    if ((format === 'gltf' || format === 'glb') && window.THREE.GLTFLoader) {
+      const loader = new THREE.GLTFLoader();
+      loader.load(url, (gltf) => onLoad(gltf.scene || new THREE.Group()), undefined, onError);
+      return;
+    }
+    if (format === 'obj' && window.THREE.OBJLoader) {
+      const loader = new THREE.OBJLoader();
+      loader.load(url, onLoad, undefined, onError);
+      return;
+    }
+    onError(new Error('Unsupported format "' + format + '" or loader not loaded (STLLoader/GLTFLoader/OBJLoader).'));
+  });
+}
+
+/**
+ * Test pipeline: search Thingiverse -> get first thing ID -> get model file -> display in Three.js.
+ * Call from UI (Library page "Fetch thing ID & display" button) or from console: testThingiversePipeline('vase')
+ */
+async function testThingiversePipeline(query) {
+  const input = document.getElementById('thingiverse-test-query');
+  const q = (typeof query === 'string' ? query : (input && input.value)) || 'vase';
+  const statusEl = document.getElementById('thingiverse-test-status');
+  const setStatus = (msg, isError) => {
+    if (statusEl) { statusEl.textContent = msg; statusEl.style.color = isError ? 'var(--red)' : 'var(--dim)'; }
+  };
+  setStatus('Searching Thingiverse...');
+  const thingId = await fetchThingIdFromThingiverseQuery(q);
+  if (thingId == null) {
+    setStatus('No thing ID found (check token and query).', true);
+    return;
+  }
+  setStatus('Thing ID: ' + thingId + ' — getting model file...');
+  const data = await getModelFileFromThingiverse(thingId);
+  if (!data) {
+    setStatus('No model file found or download failed.', true);
+    return;
+  }
+  setStatus('Loading ' + data.format.toUpperCase() + ' in viewer...');
+  try {
+    await displayModelInLibraryViewer(data);
+    setStatus('Displayed in viewer below.');
+  } catch (e) {
+    setStatus('Display error: ' + (e && e.message), true);
+  }
+}
+
+// ============================================================
+// LIBRARY PAGE 3D VIEWER
+// ============================================================
+function initThreeJSForLibrary() {
+  const container = document.getElementById('library-viewer-container');
+  const canvas = document.getElementById('library-three-canvas');
+  if (!canvas || threeRendererLib) return;
+
+  threeRendererLib = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  threeRendererLib.setSize(container.clientWidth, container.clientHeight);
+  threeRendererLib.setPixelRatio(window.devicePixelRatio);
+  threeRendererLib.setClearColor(0x000000, 0);
+
+  threeSceneLib = new THREE.Scene();
+  threeCameraLib = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+  threeCameraLib.position.set(0, 1, 4);
+  threeCameraLib.lookAt(0, 0, 0);
+
+  threeSceneLib.add(new THREE.AmbientLight(0x334466, 0.5));
+  const d = new THREE.DirectionalLight(0x00d4ff, 1.2); d.position.set(3, 5, 3); threeSceneLib.add(d);
+  const f = new THREE.DirectionalLight(0x00ffcc, 0.4); f.position.set(-3, -2, -3); threeSceneLib.add(f);
+  const p = new THREE.PointLight(0xffd700, 0.6, 20); p.position.set(0, 3, 2); threeSceneLib.add(p);
+  threeSceneLib.add(new THREE.GridHelper(6, 12, 0x003344, 0x001122));
+
+  let isDragging = false, prevX = 0, prevY = 0;
+  canvas.addEventListener('mousedown', (e) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+  canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging || !threeObjectLib) return;
+    threeObjectLib.rotation.y += (e.clientX - prevX) * 0.01;
+    threeObjectLib.rotation.x += (e.clientY - prevY) * 0.005;
+    prevX = e.clientX; prevY = e.clientY;
+  });
+  canvas.addEventListener('mouseup', () => isDragging = false);
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (threeCameraLib) threeCameraLib.position.z = Math.max(1.5, Math.min(8, threeCameraLib.position.z + e.deltaY * 0.005));
+  }, { passive: false });
+
+  function animateLib() {
+    requestAnimationFrame(animateLib);
+    if (threeObjectLib) threeObjectLib.rotation.y += 0.005;
+    if (threeRendererLib && threeSceneLib && threeCameraLib) threeRendererLib.render(threeSceneLib, threeCameraLib);
+  }
+  animateLib();
+
+  window.addEventListener('resize', () => {
+    if (!threeRendererLib || !container || !threeCameraLib) return;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    threeRendererLib.setSize(w, h);
+    threeCameraLib.aspect = w / h;
+    threeCameraLib.updateProjectionMatrix();
+  });
+}
+
+/**
+ * Displays a 3D model in the Library page viewer (Thingiverse fetch result).
+ * @param {string|object} modelInput - URL or { url, format } from getModelFileFromThingiverse
+ * @returns {Promise<THREE.Group>}
+ */
+function displayModelInLibraryViewer(modelInput) {
+  if (!window.THREE) return Promise.reject(new Error('THREE not loaded'));
+  if (!threeSceneLib) initThreeJSForLibrary();
+  if (threeObjectLib) {
+    threeSceneLib.remove(threeObjectLib);
+    threeObjectLib = null;
+  }
+
+  let url = typeof modelInput === 'string' ? modelInput : (modelInput && modelInput.url);
+  let format = (modelInput && modelInput.format);
+  if (!format && url) {
+    const m = url.toLowerCase().match(/\.(stl|obj|glb|gltf)(\?|$)/);
+    format = m ? m[1] : 'stl';
+  }
+  format = format || 'stl';
+  if (!url) return Promise.reject(new Error('Invalid modelInput: provide URL string or { url, format }'));
+
+  const placeholder = document.getElementById('library-viewer-placeholder');
+  if (placeholder) placeholder.style.display = 'flex';
+
+  return new Promise((resolve, reject) => {
+    const onLoad = (group) => {
+      if (!(group instanceof THREE.Group)) group = new THREE.Group().add(group);
+      group.scale.setScalar(0.01);
+      group.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(group);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      group.position.sub(center);
+      threeSceneLib.add(group);
+      threeObjectLib = group;
+      currentLibraryModelForWithYou = { url, format };
+      if (placeholder) placeholder.style.display = 'none';
+      resolve(group);
+    };
+    const onError = (err) => reject(err);
+
+    if (format === 'stl' && window.THREE.STLLoader) {
+      const loader = new THREE.STLLoader();
+      loader.load(url, (geometry) => {
+        const mat = new THREE.MeshPhongMaterial({ color: 0x00d4ff, specular: 0x222222, shininess: 20 });
+        const mesh = new THREE.Mesh(geometry, mat);
+        geometry.computeVertexNormals();
+        const g = new THREE.Group();
+        g.add(mesh);
+        onLoad(g);
+      }, undefined, onError);
+      return;
+    }
+    if ((format === 'gltf' || format === 'glb') && window.THREE.GLTFLoader) {
+      const loader = new THREE.GLTFLoader();
+      loader.load(url, (gltf) => onLoad(gltf.scene || new THREE.Group()), undefined, onError);
+      return;
+    }
+    if (format === 'obj' && window.THREE.OBJLoader) {
+      const loader = new THREE.OBJLoader();
+      loader.load(url, onLoad, undefined, onError);
+      return;
+    }
+    onError(new Error('Unsupported format "' + format + '" or loader not loaded.'));
+  });
+}
+
+// ============================================================
+// LIBRARY "MODEL WITH YOU" (Three.js + MediaPipe Pose)
+// ============================================================
+function initLibraryWithYouViewer() {
+  const container = document.getElementById('library-withyou-container');
+  const canvas = document.getElementById('library-withyou-canvas');
+  const video = document.getElementById('library-withyou-video');
+  if (!canvas || !container || !window.THREE || threeRendererWithYou) return;
+
+  threeRendererWithYou = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  threeRendererWithYou.setSize(container.clientWidth, container.clientHeight);
+  threeRendererWithYou.setPixelRatio(Math.min(2, window.devicePixelRatio));
+  threeRendererWithYou.setClearColor(0x000000, 1);
+
+  threeSceneWithYou = new THREE.Scene();
+  threeCameraWithYou = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+  threeCameraWithYou.position.set(0, 0, 0);
+  threeCameraWithYou.lookAt(0, 0, -1);
+
+  videoTextureWithYou = new THREE.VideoTexture(video);
+  videoTextureWithYou.minFilter = THREE.LinearFilter;
+  videoTextureWithYou.magFilter = THREE.LinearFilter;
+  const bgGeo = new THREE.PlaneGeometry(2, 2 * (container.clientHeight / container.clientWidth));
+  const bgMat = new THREE.MeshBasicMaterial({ map: videoTextureWithYou, depthWrite: false });
+  const bgMesh = new THREE.Mesh(bgGeo, bgMat);
+  bgMesh.position.z = -1.5;
+  threeSceneWithYou.add(bgMesh);
+
+  threeSceneWithYou.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const d = new THREE.DirectionalLight(0x00d4ff, 0.8);
+  d.position.set(1, 1, 0.5);
+  threeSceneWithYou.add(d);
+
+  window.addEventListener('resize', () => {
+    if (!threeRendererWithYou || !container || !threeCameraWithYou) return;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    threeRendererWithYou.setSize(w, h);
+    threeCameraWithYou.aspect = w / h;
+    threeCameraWithYou.updateProjectionMatrix();
+    if (bgMesh && bgMesh.geometry) {
+      bgMesh.geometry.dispose();
+      bgMesh.geometry = new THREE.PlaneGeometry(2, 2 * (h / w));
+    }
+  });
+}
+
+function placeModelFromPoseLandmarks(landmarks) {
+  if (!modelGroupWithYou || !threeCameraWithYou) return;
+  if (!landmarks || landmarks.length < 13) {
+    modelGroupWithYou.position.set(0, -0.1, -0.7);
+    return;
+  }
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  if (!leftShoulder || !rightShoulder) {
+    modelGroupWithYou.position.set(0, -0.1, -0.7);
+    return;
+  }
+  const chestX = (leftShoulder.x + rightShoulder.x) / 2;
+  const chestY = (leftShoulder.y + rightShoulder.y) / 2;
+  const ndcX = chestX * 2 - 1;
+  const ndcY = -(chestY * 2 - 1);
+  const v = new THREE.Vector3(ndcX, ndcY, 0.4);
+  v.unproject(threeCameraWithYou);
+  modelGroupWithYou.position.copy(v);
+}
+
+function renderLibraryWithYouLoop() {
+  if (!threeRendererWithYou || !threeSceneWithYou || !threeCameraWithYou) return;
+  const video = document.getElementById('library-withyou-video');
+  if (video && video.readyState >= 2 && videoTextureWithYou) videoTextureWithYou.needsUpdate = true;
+  threeRendererWithYou.render(threeSceneWithYou, threeCameraWithYou);
+  libraryWithYouAnimationId = requestAnimationFrame(renderLibraryWithYouLoop);
+}
+
+async function toggleLibraryWithYouCamera() {
+  const btn = document.getElementById('library-withyou-cam-btn');
+  const placeholder = document.getElementById('library-withyou-placeholder');
+  if (libraryWithYouStream) {
+    libraryWithYouStream.getTracks().forEach(t => t.stop());
+    libraryWithYouStream = null;
+    if (libraryWithYouAnimationId) cancelAnimationFrame(libraryWithYouAnimationId);
+    libraryWithYouAnimationId = null;
+    if (poseDetectorWithYou) poseDetectorWithYou.close && poseDetectorWithYou.close();
+    poseDetectorWithYou = null;
+    btn.textContent = 'Start camera';
+    if (placeholder) placeholder.style.display = 'flex';
+    return;
+  }
+  if (!currentLibraryModelForWithYou) {
+    toast('Fetch a model from Thingiverse above first (e.g. search "vase").', 'info');
+    return;
+  }
+  try {
+    libraryWithYouStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    const video = document.getElementById('library-withyou-video');
+    video.srcObject = libraryWithYouStream;
+    await video.play();
+  } catch (e) {
+    toast('Camera access denied: ' + (e && e.message), 'error');
+    return;
+  }
+  if (!threeSceneWithYou) initLibraryWithYouViewer();
+  await updateLibraryWithYouModel();
+  if (placeholder) placeholder.style.display = 'none';
+
+  if (typeof Pose !== 'undefined') {
+    try {
+      poseDetectorWithYou = new Pose({
+        locateFile: (file) => 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469240/' + file,
+      });
+      poseDetectorWithYou.setOptions({ upperBodyOnly: false, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      poseDetectorWithYou.onResults((results) => {
+        if (results.poseLandmarks) placeModelFromPoseLandmarks(results.poseLandmarks);
+      });
+    } catch (err) {
+      console.warn('MediaPipe Pose init failed, model at fixed position:', err);
+    }
+  }
+
+  function detectPose() {
+    const video = document.getElementById('library-withyou-video');
+    if (!video || video.readyState < 2 || !poseDetectorWithYou) {
+      requestAnimationFrame(detectPose);
+      return;
+    }
+    poseDetectorWithYou.send({ image: video });
+    requestAnimationFrame(detectPose);
+  }
+  if (poseDetectorWithYou) detectPose();
+
+  renderLibraryWithYouLoop();
+  btn.textContent = 'Stop camera';
+}
+
+function loadModelIntoLibraryWithYouScene(url, format, onLoad) {
+  if (!threeSceneWithYou || !window.THREE) return;
+  if (modelGroupWithYou) {
+    threeSceneWithYou.remove(modelGroupWithYou);
+    modelGroupWithYou = null;
+  }
+  format = format || (url && url.toLowerCase().match(/\.(stl|obj|glb|gltf)(\?|$)/) && RegExp.$1) || 'stl';
+  const onLoaded = (group) => {
+    if (!(group instanceof THREE.Group)) group = new THREE.Group().add(group);
+    group.scale.setScalar(0.15);
+    group.position.set(0, -0.1, -0.7);
+    threeSceneWithYou.add(group);
+    modelGroupWithYou = group;
+    if (onLoad) onLoad();
+  };
+  const onError = (err) => console.warn('Library WithYou model load error:', err);
+  if (format === 'stl' && window.THREE.STLLoader) {
+    const loader = new THREE.STLLoader();
+    loader.load(url, (geometry) => {
+      const mat = new THREE.MeshPhongMaterial({ color: 0x00d4ff, specular: 0x222222, shininess: 20 });
+      const mesh = new THREE.Mesh(geometry, mat);
+      geometry.computeVertexNormals();
+      onLoaded(new THREE.Group().add(mesh));
+    }, undefined, onError);
+    return;
+  }
+  if ((format === 'gltf' || format === 'glb') && window.THREE.GLTFLoader) {
+    const loader = new THREE.GLTFLoader();
+    loader.load(url, (gltf) => onLoaded(gltf.scene || new THREE.Group()), undefined, onError);
+    return;
+  }
+  if (format === 'obj' && window.THREE.OBJLoader) {
+    const loader = new THREE.OBJLoader();
+    loader.load(url, onLoaded, undefined, onError);
+    return;
+  }
+  onError(new Error('Unsupported format or loader'));
+}
+
+function updateLibraryWithYouModel() {
+  if (!currentLibraryModelForWithYou) return Promise.resolve();
+  if (!threeSceneWithYou) initLibraryWithYouViewer();
+  return new Promise((resolve) => {
+    loadModelIntoLibraryWithYouScene(
+      currentLibraryModelForWithYou.url,
+      currentLibraryModelForWithYou.format,
+      resolve
+    );
+  });
 }
 
 // ============================================================
@@ -1516,6 +2288,35 @@ function colorFromName(name) {
   return '#4488cc';
 }
 
+function isValidUrl(s) {
+  if (typeof s !== 'string' || !s.trim()) return false;
+  const trimmed = s.trim();
+  return trimmed.startsWith('https://') && trimmed.length < 2048;
+}
+
+// Collect up to 3 model reference URLs from step3 (model_ref). Supports:
+// - model_url as array [url1, url2, url3]
+// - model_url_1, model_url_2, model_url_3
+// - single model_url (backward compat)
+function getModelRefUrls(s3) {
+  const out = [];
+  if (!s3 || typeof s3 !== 'object') return out;
+  if (Array.isArray(s3.model_url)) {
+    s3.model_url.slice(0, 3).forEach(u => { if (typeof u === 'string' && u.trim()) out.push(u.trim()); });
+    return out;
+  }
+  if (s3.model_url_1 && typeof s3.model_url_1 === 'string') out.push(s3.model_url_1.trim());
+  if (s3.model_url_2 && typeof s3.model_url_2 === 'string') out.push(s3.model_url_2.trim());
+  if (s3.model_url_3 && typeof s3.model_url_3 === 'string') out.push(s3.model_url_3.trim());
+  if (out.length > 0) return out;
+  if (typeof s3.model_url === 'string' && s3.model_url.trim()) out.push(s3.model_url.trim());
+  return out;
+}
+
+function isValidHexColor(s) {
+  return typeof s === 'string' && /^#[0-9A-Fa-f]{6}$/.test(s.trim());
+}
+
 function logHTML(msg, type = '') {
   const e   = Math.floor((Date.now() - startTime) / 1000);
   const mm  = String(Math.floor(e / 60)).padStart(2,'0');
@@ -1601,10 +2402,11 @@ function switchInputTab(mode) {
 }
 
 function updateGenerateButtonState() {
-  const btn = document.getElementById('btn-generate');
-  if (!btn) return;
   const canGenerate = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
-  btn.disabled = !canGenerate;
+  ['btn-generate', 'btn-generate-meshy'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = !canGenerate;
+  });
 }
 
 function handleFullVideoUpload(file) {
@@ -1810,7 +2612,7 @@ function removeCapture(idx) {
   captures.splice(idx, 1);
   updateThumbStrip();
   updateCaptureUI();
-  document.getElementById('btn-generate').disabled = captures.length < 5;
+  updateGenerateButtonState();
 }
 
 function updateCaptureUI() {
