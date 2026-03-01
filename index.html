@@ -608,18 +608,18 @@ window.APP_CONFIG = window.APP_CONFIG || {
 // ============================================================
 
 let CONFIG = {
-  GEMINI:            false,  // set to false to use dummy data instead of calling the Gemini API
-  geminiKey:         'AIzaSyCW1DJbLIfrP6ANTKdbUjSSwCSp1eTkA6U',
+  GEMINI:            true,  // set to false to use dummy data instead of calling the Gemini API
+  geminiKey:         '',
   elevenLabsKey:     '',
-  elevenLabsVoiceId: 'EXAVITQu4vr4xnSDxMaL',
+  elevenLabsVoiceId: '',
   // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
-  thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
+  thingiverseAccessToken: '',
   // Meshy: API key for Image-to-3D. Get one at https://www.meshy.ai/settings/api (format msy_...). Test key: msy_dummy_api_key_for_test_mode_12345678
-  meshyApiKey: 'msy_czcf9aMuDWojpg5RZ8oww5QMVrMcR1pBtePt',
+  meshyApiKey: '',
 };
 
 
-let DEBUG = true;
+let DEBUG = false;
 let BACKEND_URL = 'http://localhost:8000';
 
 // ============================================================
