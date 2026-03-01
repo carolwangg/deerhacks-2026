@@ -389,13 +389,13 @@ let chainResults = { step1: null, step2: null, step3: null };
 function switchFullVideoTab() {
   switchInputTab('fullvideo');
   const countEl = document.getElementById('capture-count-bar');
-  countEl.display = 'none';
+  countEl.style.display = 'none';
 }
 
 function switchGestureSpotTab() {
   switchInputTab('gesture')
   const countEl = document.getElementById('capture-count-bar');
-  countEl.display = 'none';
+  countEl.style.display = 'none';
 }
 
 //============================================================
@@ -2588,7 +2588,7 @@ let fullVideoFile = null; // for "Upload Full Video" mode: the file to send enti
 
 function switchInputTab(mode) {
   const countEl = document.getElementById('capture-count-bar');
-  countEl.display = 'flex';
+  countEl.style.display = 'flex';
   inputMode = mode;
   // Update tab styles
   ['camera','upload','video','fullvideo','gesture'].forEach(m => {
