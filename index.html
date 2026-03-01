@@ -561,7 +561,7 @@
 // CONFIG
 // ============================================================
 let CONFIG = {
-  geminiKey:         'AIzaSyAN4cZEuVWmPRsHBNwPP_Kmnmd2yXgmrhM',
+  geminiKey:         'AIzaSyCW1DJbLIfrP6ANTKdbUjSSwCSp1eTkA6U',
   elevenLabsKey:     '',
   // Thingiverse: OAuth2 access token. Get one via https://www.thingiverse.com/apps/create (create app, then OAuth flow) or from browser Network tab when logged in (request to api.thingiverse.com has Authorization: Bearer <token>)
   thingiverseAccessToken: '033d3556a12bd37a0e128c24b3fd7a90',
@@ -789,7 +789,7 @@ function toggleChainStep(n) {
 // Single model — no fallback loop (fallbacks waste quota on same key)
 // Change this if you upgrade your API key tier
 const GEMINI_MODELS = [
-  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
 ];
 
 // ---- Resize a base64 image to max 512px wide, quality 0.6 to keep payload small ----
@@ -1263,6 +1263,7 @@ function buildGeminiJsonForMeshy(chainData) {
 }
 
 async function generateModelWithMeshy() {
+  closeCamera();
   const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
   if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
   if (!CONFIG.geminiKey) return toast('Set CONFIG.geminiKey for the Gemini pipeline.', 'info');
