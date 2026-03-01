@@ -64,8 +64,8 @@
             <button class="input-tab active" id="tab-camera" onclick="switchInputTab('camera')">📷 Live Camera</button>
             <button class="input-tab" id="tab-upload" onclick="switchInputTab('upload')">📁 Upload Photos</button>
             <button class="input-tab" id="tab-video" onclick="switchInputTab('video')">🎞️ Upload Video</button>
-            <button class="input-tab" id="tab-fullvideo" onclick="switchInputTab('fullvideo')">🎬 Full Video</button>
-            <button class="input-tab" id="tab-gesture" onclick="switchInputTab('gesture')">✋ Gesture Sculpt</button>
+            <button class="input-tab" id="tab-fullvideo" onclick="switchFullVideoTab()">🎬 Full Video</button>
+            <button class="input-tab" id="tab-gesture" onclick="switchGestureSpotTab()">✋ Gesture Sculpt</button>
           </div>
 
           <!-- CAMERA ZONE -->
@@ -78,7 +78,7 @@
                 <div class="scan-corner tl"></div><div class="scan-corner tr"></div>
                 <div class="scan-corner bl"></div><div class="scan-corner br"></div>
                 <div class="scan-line" id="scan-line"></div>
-                <div class="capture-count" id="capture-count">0 / 5 CAPTURED</div>
+                <div class="capture-count" id="capture-count" style="display:none">0 / 5 CAPTURED</div>
               </div>
             </div>
             <div class="captures-row">
@@ -127,7 +127,7 @@
                 <span class="scrubber-time" id="scrubber-time">0:00 / 0:00</span>
                 <button class="btn btn-grab" onclick="grabVideoFrame()">📸 Grab Frame</button>
               </div>
-              <div style="font-size:12px;color:var(--dim);margin-top:6px">Scrub to different angles of your object and grab 5 frames</div>
+              <div style="font-size:16px;color:var(--dim);margin-top:6px">Scrub to different angles of your object and grab 5 frames</div>
             </div>
             <!-- thumbs rendered by updateThumbStrip() -->
             <div class="captures-row" id="video-thumb-row" style="margin-top:10px"></div>
@@ -146,8 +146,8 @@
               <input type="file" id="fullvideo-file-input" accept="video/mp4,video/quicktime,video/webm" onchange="handleFullVideoUpload(this.files[0])">
             </div>
             <div id="fullvideo-preview-row" style="display:none; margin-top:10px; align-items:center; gap:10px;">
-              <span id="fullvideo-filename" style="font-size:12px;color:var(--teal);"></span>
-              <button class="btn btn-outline" style="padding:6px 12px; font-size:14px;" onclick="clearFullVideo()">✕ Clear</button>
+              <span id="fullvideo-filename" style="font-size:16px;color:var(--teal);"></span>
+              <button class="btn btn-outline" style="padding:6px 16px; font-size:14px;" onclick="clearFullVideo()">✕ Clear</button>
             </div>
             <div class="btn-row" style="margin-top:8px">
               <button class="btn btn-outline" onclick="clearFullVideo(); resetScan();">↺ Clear</button>
@@ -157,7 +157,7 @@
           <!-- GESTURE SCULPT ZONE -->
           <div id="gesture-zone" style="display:none; position:relative">
             <div class="panel-title">✋ Gesture-Based 3D Sculpting</div>
-            <div style="color:var(--dim);font-size:12px;line-height:1.6;margin-bottom:12px">
+            <div style="color:var(--dim);font-size:16px;line-height:1.6;margin-bottom:16px">
               <strong>Gestures:</strong><br>
               👉 <strong>Pointing:</strong> Create a hole<br>
               🤌 <strong>Pinching:</strong> Pull & deform mesh<br>
@@ -177,7 +177,7 @@
             </div>
           </div>
 
-          <div class="progress-bar" style="margin-top:12px"><div class="progress-fill" id="capture-progress"></div></div>
+          <div class="progress-bar" style="margin-top:16px"><div class="progress-fill" id="capture-progress"></div></div>
           <div id="capture-count-bar" style="font-family:'Orbitron',monospace;font-size:14px;color:var(--teal);text-align:center;margin-top:6px;letter-spacing:2px">0 / 5 CAPTURED</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn btn-generate" id="btn-generate-meshy" onclick="generateModelWithMeshy()" disabled>🎨 Generate 3D model</button>
@@ -197,7 +197,7 @@
                 <span class="chain-step-status" id="chain-status-1">⏳</span>
               </div>
               <div class="chain-step-body" id="chain-body-1">
-                <div id="chain-content-1" style="color:var(--dim);font-size:12px;">Waiting...</div>
+                <div id="chain-content-1" style="color:var(--dim);font-size:16px;">Waiting...</div>
               </div>
             </div>
 
@@ -209,7 +209,7 @@
                 <span class="chain-step-status" id="chain-status-2">⏳</span>
               </div>
               <div class="chain-step-body" id="chain-body-2">
-                <div id="chain-content-2" style="color:var(--dim);font-size:12px;">Waiting...</div>
+                <div id="chain-content-2" style="color:var(--dim);font-size:16px;">Waiting...</div>
               </div>
             </div>
 
@@ -221,7 +221,7 @@
                 <span class="chain-step-status" id="chain-status-3">⏳</span>
               </div>
               <div class="chain-step-body" id="chain-body-3">
-                <div id="chain-content-3" style="color:var(--dim);font-size:12px;">Waiting...</div>
+                <div id="chain-content-3" style="color:var(--dim);font-size:16px;">Waiting...</div>
               </div>
             </div>
 
@@ -266,7 +266,7 @@
           <div class="btn-row" style="flex-wrap:wrap;">
             <input type="text" id="voice-command-input" placeholder="e.g. make it bigger, rotate left, metal, red" class="voice-input"
               onkeydown="if(event.key==='Enter'){event.preventDefault();applyCommandFromInput();}"
-              style="flex:1;min-width:180px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:10px 12px;color:var(--text);font-size:12px;;font-family:inherit;" />
+              style="flex:1;min-width:180px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:10px 16px;color:var(--text);font-size:16px;;font-family:inherit;" />
             <button class="btn btn-outline" id="btn-mic" type="button" onclick="toggleMicToTextBox()" title="Speak to fill the text box">🎙️ Mic</button>
             <button class="btn btn-voice" id="btn-voice" onclick="applyCommandFromInput()">Apply command</button>
           </div>
@@ -294,10 +294,10 @@
       <div class="panel-title">Thingiverse API test</div>
       <p style="font-size:0.75rem;color:var(--dim);margin-bottom:10px;">Set CONFIG.thingiverseAccessToken in the script. Get a token via <a href="https://www.thingiverse.com/apps/create" target="_blank" rel="noopener" style="color:var(--teal)">Thingiverse Apps</a> (OAuth2) or from the browser Network tab when logged in.</p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="thingiverse-test-query" placeholder="e.g. vase" style="flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;color:var(--text);font-size:12px;;" />
+        <input type="text" id="thingiverse-test-query" placeholder="e.g. vase" style="flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:8px 16px;color:var(--text);font-size:16px;;" />
         <button class="btn btn-generate" onclick="testThingiversePipeline()">Fetch thing ID &amp; display</button>
       </div>
-      <div id="thingiverse-test-status" style="font-size:12px;color:var(--dim);margin-top:8px;"></div>
+      <div id="thingiverse-test-status" style="font-size:16px;color:var(--dim);margin-top:8px;"></div>
     </div>
     <div class="panel" style="margin-bottom:20px;">
       <div class="panel-title">Thingiverse 3D preview</div>
@@ -384,6 +384,20 @@ const startTime = Date.now();
 
 // Chain state
 let chainResults = { step1: null, step2: null, step3: null };
+
+
+function switchFullVideoTab() {
+  switchInputTab('fullvideo');
+  const countEl = document.getElementById('capture-count-bar');
+  countEl.display = 'none';
+}
+
+function switchGestureSpotTab() {
+  switchInputTab('gesture')
+  const countEl = document.getElementById('capture-count-bar');
+  countEl.display = 'none';
+}
+
 //============================================================
 // EXPORT MODIFIED MODEL
 //============================================================
@@ -635,7 +649,7 @@ function resetScan() {
   for (let i = 1; i <= 3; i++) {
     document.getElementById('chain-step-' + i).className = 'chain-step';
     document.getElementById('chain-status-' + i).textContent = '⏳';
-    document.getElementById('chain-content-' + i).innerHTML = '<span style="color:var(--dim);font-size:12px">Waiting...</span>';
+    document.getElementById('chain-content-' + i).innerHTML = '<span style="color:var(--dim);font-size:16px">Waiting...</span>';
   }
   logHTML('Scan reset. Ready for new object.');
 }
@@ -655,7 +669,7 @@ const GEMINI_MODELS = [
   'gemini-2.5-flash',
 ];
 
-// ---- Resize a base64 image to max 512px wide, quality 0.6 to keep payload small ----
+// ---- Resize a base64 image to max 516px wide, quality 0.6 to keep payload small ----
 async function compressImage(dataUrl, maxSize = 512, quality = 0.60) {
   return new Promise(resolve => {
     const img = new Image();
@@ -922,7 +936,7 @@ Keys required: detection (object_name, confidence_score 0-1, confidence_reason, 
   const conf1Pct = Math.round((s1.confidence_score || 0) * 100);
   const conf1Class = conf1Pct >= 75 ? 'high' : conf1Pct >= 50 ? 'medium' : 'low';
   document.getElementById('chain-content-1').innerHTML = `
-    <div style="font-size:12px;;color:var(--bright);font-weight:600;margin-bottom:6px">${s1.object_name || 'Unknown'}</div>
+    <div style="font-size:16px;;color:var(--bright);font-weight:600;margin-bottom:6px">${s1.object_name || 'Unknown'}</div>
     <div class="confidence-label"><span>Confidence</span><span style="color:var(--${conf1Class === 'high' ? 'green' : conf1Class === 'medium' ? 'gold' : 'red'})">${conf1Pct}%</span></div>
     <div class="confidence-bar"><div class="confidence-fill ${conf1Class}" id="conf-fill-1"></div></div>
     <div style="font-size:0.75rem;color:var(--dim);margin-top:4px">${s1.confidence_reason || ''}</div>
@@ -943,7 +957,7 @@ Keys required: detection (object_name, confidence_score 0-1, confidence_reason, 
     return `<div class="analysis-item"><label>${label}</label><span style="color:var(--${pct >= 70 ? 'green' : pct >= 40 ? 'gold' : 'red'})">${pct}%</span></div>`;
   }).join('');
   document.getElementById('chain-content-2').innerHTML = `
-    <div style="font-size:12px;;color:var(--bright);font-weight:600;margin-bottom:6px">${s2.brand && s2.brand !== 'Unknown' ? s2.brand + ' — ' : ''}${s2.item_model && s2.item_model !== 'Unknown' ? s2.item_model : s2.object_type || '—'}</div>
+    <div style="font-size:16px;;color:var(--bright);font-weight:600;margin-bottom:6px">${s2.brand && s2.brand !== 'Unknown' ? s2.brand + ' — ' : ''}${s2.item_model && s2.item_model !== 'Unknown' ? s2.item_model : s2.object_type || '—'}</div>
     <div class="confidence-label"><span>Overall Confidence</span><span style="color:var(--${conf2Class === 'high' ? 'green' : conf2Class === 'medium' ? 'gold' : 'red'})">${conf2Pct}%</span></div>
     <div class="confidence-bar"><div class="confidence-fill ${conf2Class}" id="conf-fill-2"></div></div>
     <div class="analysis-grid" style="margin-top:8px">
@@ -953,7 +967,7 @@ Keys required: detection (object_name, confidence_score 0-1, confidence_reason, 
       <div class="analysis-item"><label>Surface</label><span>${s2.surface_finish || '—'}</span></div>
       ${breakdownHTML}
     </div>
-    ${s2.search_query ? `<div class="search-result" style="margin-top:8px"><label style="font-size:14px;color:var(--dim);display:block;margin-bottom:4px">RECOMMENDED SEARCH QUERY</label><span style="color:var(--teal);font-size:12px">"${s2.search_query}"</span></div>` : ''}
+    ${s2.search_query ? `<div class="search-result" style="margin-top:8px"><label style="font-size:14px;color:var(--dim);display:block;margin-bottom:4px">RECOMMENDED SEARCH QUERY</label><span style="color:var(--teal);font-size:16px">"${s2.search_query}"</span></div>` : ''}
   `;
   setTimeout(() => { const el = document.getElementById('conf-fill-2'); if (el) el.style.width = conf2Pct + '%'; }, 100);
   setChainStepDone(2, '✅');
@@ -991,7 +1005,7 @@ function setChainStepActive(n) {
   const el = document.getElementById('chain-step-' + n);
   el.className = 'chain-step active';
   document.getElementById('chain-status-' + n).innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
-  document.getElementById('chain-content-' + n).innerHTML = '<span style="color:var(--dim);font-size:12px">Processing...</span>';
+  document.getElementById('chain-content-' + n).innerHTML = '<span style="color:var(--dim);font-size:16px">Processing...</span>';
 }
 
 function setChainStepDone(n, icon) {
@@ -2573,6 +2587,8 @@ let videoElement = null;  // the loaded video for scrubbing
 let fullVideoFile = null; // for "Upload Full Video" mode: the file to send entirely to Gemini
 
 function switchInputTab(mode) {
+  const countEl = document.getElementById('capture-count-bar');
+  countEl.display = 'flex';
   inputMode = mode;
   // Update tab styles
   ['camera','upload','video','fullvideo','gesture'].forEach(m => {
