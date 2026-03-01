@@ -65,7 +65,7 @@
             <button class="input-tab" id="tab-upload" onclick="switchInputTab('upload')">📁 Upload Photos</button>
             <button class="input-tab" id="tab-video" onclick="switchInputTab('video')">🎞️ Upload Video</button>
             <button class="input-tab" id="tab-fullvideo" onclick="switchFullVideoTab()">🎬 Full Video</button>
-            <button class="input-tab" id="tab-gesture" onclick="switchGestureSpotTab()">✋ Gesture Sculpt</button>
+            <button class="input-tab" id="tab-gesture" style="display:none" onclick="switchGestureSpotTab()">✋ Gesture Sculpt</button>
           </div>
 
           <!-- CAMERA ZONE -->
@@ -339,7 +339,7 @@ window.APP_CONFIG = window.APP_CONFIG || {
 // ============================================================
 
 let CONFIG = {
-  GEMINI:            true,  // set to false to use dummy data instead of calling the Gemini API
+  GEMINI:            false,  // set to false to use dummy data instead of calling the Gemini API
   geminiKey:         '',
   elevenLabsKey:     '',
   elevenLabsVoiceId: '',
@@ -350,7 +350,7 @@ let CONFIG = {
 };
 
 
-let DEBUG = false;
+let DEBUG = true;
 let BACKEND_URL = 'http://localhost:8000';
 
 // ============================================================
@@ -390,12 +390,16 @@ function switchFullVideoTab() {
   switchInputTab('fullvideo');
   const countEl = document.getElementById('capture-count-bar');
   countEl.style.display = 'none';
+  const progBar = document.getElementById('capture-progress');
+  progBar.style.display = 'none';
 }
 
 function switchGestureSpotTab() {
   switchInputTab('gesture')
   const countEl = document.getElementById('capture-count-bar');
   countEl.style.display = 'none';
+  const progBar = document.getElementById('capture-progress');
+  progBar.style.display = 'none';
 }
 
 //============================================================
@@ -1244,6 +1248,8 @@ function displayPlaceholderCubeInThree() {
 }
 
 async function generateModelWithMeshy() {
+  document.getElementById('tab-gesture').style.display = 'flex';
+
   if (stream) disconnectLiveCameraUI();
   const canRun = (captures.length >= 5) || (inputMode === 'fullvideo' && fullVideoFile);
   if (!canRun) return toast(inputMode === 'fullvideo' ? 'Upload a full video first.' : 'Capture 5 angles first.', 'error');
@@ -1326,7 +1332,6 @@ async function generateModelWithMeshy() {
     toast('Model load failed: ' + (e && e.message), 'error');
     return;
   }
-
   hideLoading();
   toast('3D model generated with Meshy (Gemini + Meshy)!', 'success');
   logHTML('Meshy model loaded and displayed.', 'success');
@@ -2589,6 +2594,8 @@ let fullVideoFile = null; // for "Upload Full Video" mode: the file to send enti
 function switchInputTab(mode) {
   const countEl = document.getElementById('capture-count-bar');
   countEl.style.display = 'flex';
+  const progBar = document.getElementById('capture-progress');
+  progBar.style.display = 'flex';
   inputMode = mode;
   // Update tab styles
   ['camera','upload','video','fullvideo','gesture'].forEach(m => {
