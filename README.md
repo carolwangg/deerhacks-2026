@@ -1,4 +1,4 @@
-# ForgeAI — Scan. Generate. Own.
+# MimeCraft — Scan. Generate. Own.
 
 3D scan → AI analysis (Gemini) → 3D model with **voice control** (ElevenLabs + Gemini).
 
